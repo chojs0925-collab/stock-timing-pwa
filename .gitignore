@@ -1,0 +1,9 @@
+# 개인 보유 종목 — 절대 공개 저장소에 올리지 않는다
+data/holdings.local.json
+
+# 로컬 운영 메모·검증 스크린샷·캐시
+notes.md
+preview*.png
+__pycache__/
+*.pyc
+.DS_Store

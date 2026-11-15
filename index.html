@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0F14">
+<meta name="description" content="국장 일봉 스윙 매매 타이밍과 진입가·목표가·손절가를 신호등으로 보여주는 초보자용 모바일 앱">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="국장 타이밍">
+<title>국장 매매 타이밍</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22"><rect x="2" y="8" width="4" height="8" rx="1.4" fill="#3DDC97"/><rect x="9" y="5" width="4" height="11" rx="1.4" fill="#3DDC97"/><rect x="16" y="2" width="4" height="9" rx="1.4" fill="#FFC857"/></svg>
+      </span>
+      <div>
+        <h1>국장 타이밍</h1>
+        <p id="marketDate">기준일 불러오는 중…</p>
+      </div>
+    </div>
+    <button class="icon-btn" id="refreshBtn" aria-label="최신 신호 새로고침">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
+    </button>
+  </header>
+
+  <main id="main">
+
+    <!-- 탭 1 : 오늘의 추천 픽 -->
+    <section class="view active" id="view-picks" aria-label="오늘의 추천 픽">
+      <div id="marketCard" class="market-card skeleton-block">시장 정보 불러오는 중…</div>
+      <div class="chips" id="summaryChips"></div>
+
+      <div class="section-head">
+        <h2>오늘의 추천 픽</h2>
+        <span class="hint">매수 적합도 점수 순</span>
+      </div>
+      <div id="pickList" class="pick-list"><div class="card placeholder">불러오는 중…</div></div>
+
+      <div class="section-head">
+        <h2>전체 종목 신호등</h2>
+        <span class="hint" id="allCount"></span>
+      </div>
+      <div class="card list-card" id="allList"></div>
+    </section>
+
+    <!-- 탭 2 : 내 종목 신호등 -->
+    <section class="view" id="view-holdings" aria-label="내 종목 신호등">
+      <div class="card total-card" id="holdSummary"></div>
+
+      <div class="section-head">
+        <h2>내 종목</h2>
+        <button class="ghost-btn" id="toggleAddBtn">+ 종목 추가</button>
+      </div>
+
+      <form class="card add-form hidden" id="addForm" autocomplete="off">
+        <label class="field">
+          <span>종목 검색 (이름 또는 코드)</span>
+          <input id="stockSearch" list="stockOptions" placeholder="예: 삼성전자 또는 005930" inputmode="text">
+          <datalist id="stockOptions"></datalist>
+        </label>
+        <div class="two-col">
+          <label class="field">
+            <span>매수 평균가 (원)</span>
+            <input id="avgPriceInput" type="number" min="1" step="1" placeholder="80077" inputmode="numeric">
+          </label>
+          <label class="field">
+            <span>보유 수량 (주)</span>
+            <input id="qtyInput" type="number" min="1" step="1" placeholder="18" inputmode="numeric">
+          </label>
+        </div>
+        <p class="form-msg hidden" id="formMsg"></p>
+        <div class="form-actions">
+          <button type="button" class="ghost-btn" id="cancelAddBtn">취소</button>
+          <button type="submit" class="primary-btn" id="saveHoldingBtn">담기</button>
+        </div>
+      </form>
+
+      <div id="holdingList"></div>
+      <p class="footnote">매수 평균가·수량은 이 폰(브라우저)에만 저장돼요. 삼성증권 계좌와는 연결되지 않습니다.</p>
+    </section>
+
+    <!-- 탭 3 : 매매 원칙 & 연동 -->
+    <section class="view" id="view-rules" aria-label="매매 원칙과 연동">
+      <div class="section-head"><h2>스윙 3대 원칙</h2><span class="hint">초보자용</span></div>
+      <div class="rule-list">
+        <article class="card rule">
+          <span class="rule-no">01</span>
+          <h3>한 번에 계획 금액의 절반만</h3>
+          <p>1차는 진입가에서 절반, 2차는 20일선까지 눌리면 나머지. 한 번에 다 사면 손절선이 멀어져 손실이 커져요.</p>
+        </article>
+        <article class="card rule">
+          <span class="rule-no">02</span>
+          <h3>손절은 -4%, 예외 없이</h3>
+          <p>주문 직후 mPOP 자동감시주문(스탑로스)에 손절가를 걸어두세요. 판단이 흐려지기 전에 기계적으로 처리하는 게 핵심이에요.</p>
+        </article>
+        <article class="card rule">
+          <span class="rule-no">03</span>
+          <h3>+8%에서 절반 익절</h3>
+          <p>목표가에 닿으면 절반을 팔아 수익을 확정하고, 남은 절반은 20일선을 따라 올려가며 보유하세요. 신호가 🔴로 바뀌면 정리합니다.</p>
+        </article>
+      </div>
+
+      <div class="section-head"><h2>추천 기록</h2><span class="hint">성과 트래킹</span></div>
+      <div class="card" id="recordCard"></div>
+      <div class="card backtest-card hidden" id="backtestCard"></div>
+
+      <div class="section-head"><h2>증권사 연동 설계</h2><span class="hint">모듈형 어댑터</span></div>
+      <div class="card">
+        <p class="body-text">지금은 신호 계산과 주문 계획까지만 하고, 실제 주문은 직접 mPOP에서 넣는 구조예요. 아래 <code>brokerAdapter</code> 규격만 구현하면 삼성증권 API나 피클 장중 알림으로 갈아끼울 수 있습니다.</p>
+        <pre class="code" id="adapterCode"></pre>
+        <div class="adapter-state">
+          <span class="dot-pill">현재 연결: <b>수동(mPOP 직접 주문)</b></span>
+          <span class="dot-pill muted">다음 단계: 장중 알림 → 자동감시주문 등록</span>
+        </div>
+      </div>
+
+      <div class="section-head"><h2>데이터 &amp; 유의사항</h2></div>
+      <div class="card">
+        <ul class="bullets" id="dataNotes"></ul>
+      </div>
+
+      <div class="section-head"><h2>홈 화면에 설치</h2></div>
+      <div class="card">
+        <ol class="bullets ordered">
+          <li>갤럭시 크롬에서 이 페이지를 연 뒤 오른쪽 위 <b>⋮</b> 메뉴를 누릅니다.</li>
+          <li><b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 선택합니다.</li>
+          <li>홈 화면 아이콘으로 전체 화면 앱처럼 열립니다. 한 번 열면 신호 데이터가 캐시돼 오프라인에서도 마지막 신호가 보여요.</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="주요 탭">
+    <button class="tab active" data-tab="picks">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/></svg>
+      <span>오늘의 픽</span>
+    </button>
+    <button class="tab" data-tab="holdings">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18v12H3z"/><path d="M8 7V5h8v2"/><path d="M3 12h18"/></svg>
+      <span>내 종목</span>
+    </button>
+    <button class="tab" data-tab="rules">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+      <span>원칙·연동</span>
+    </button>
+  </nav>
+</div>
+
+<div class="sheet-backdrop hidden" id="sheetBackdrop"></div>
+<section class="sheet hidden" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheet-grab" aria-hidden="true"></div>
+  <div class="sheet-body" id="sheetBody"></div>
+</section>
+
+<div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
