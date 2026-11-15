@@ -85,19 +85,22 @@ def main() -> int:
         seed = load_seed()
         data = json.load(open(os.path.join(ROOT, "data", "signals.json"), encoding="utf-8"))
 
-        page.goto(build_import_url(seed), wait_until="networkidle")
+        page.goto(build_import_url(seed) if seed else BASE, wait_until="networkidle")
         page.wait_for_selector(".pick-card", state="attached", timeout=15000)
 
-        # #import= 가져오기: localStorage 저장 후 주소창 해시 제거
-        check(page.evaluate("location.hash") == "", "가져오기 후 URL 해시 제거", repr(page.evaluate("location.hash")))
-        stored_n = page.evaluate(
-            "JSON.parse(localStorage.getItem('gj.holdings.v1')||'[]').length"
-        )
-        check(stored_n == len(seed), "가져오기 → localStorage 저장", f"{stored_n}/{len(seed)}종목")
-        check(page.evaluate("document.querySelector('#view-holdings').classList.contains('active')"),
-              "가져오기 후 내 종목 탭으로 이동")
-        page.locator('.tabbar .tab[data-tab="picks"]').click()
-        page.wait_for_timeout(150)
+        # #import= 가져오기: localStorage 저장 후 주소창 해시 제거 (시드 파일이 있을 때만)
+        if not seed:
+            print("[skip] data/holdings.local.json 없음 — #import= 검증 건너뜀")
+        else:
+            check(page.evaluate("location.hash") == "", "가져오기 후 URL 해시 제거", repr(page.evaluate("location.hash")))
+            stored_n = page.evaluate(
+                "JSON.parse(localStorage.getItem('gj.holdings.v1')||'[]').length"
+            )
+            check(stored_n == len(seed), "가져오기 → localStorage 저장", f"{stored_n}/{len(seed)}종목")
+            check(page.evaluate("document.querySelector('#view-holdings').classList.contains('active')"),
+                  "가져오기 후 내 종목 탭으로 이동")
+            page.locator('.tabbar .tab[data-tab="picks"]').click()
+            page.wait_for_timeout(150)
 
         # ---------- 기본 렌더 ----------
         title = page.title()
@@ -184,12 +187,15 @@ def main() -> int:
         check(cards == len(seed), "보유 종목 자동 로드", f"{cards}개 (시드 {len(seed)}개)")
 
         hold_text = page.locator("#holdingList").inner_text()
-        for name in ("삼성전자", "대한광통신", "스트라드비젼", "매드업", "에스케이증권" if False else "SK증권"):
-            if name not in hold_text:
-                check(False, "보유 종목 표시", f"{name} 누락")
-                break
+        if not seed:
+            print("[skip] 보유 종목 시드 없음 — data/holdings.local.json을 두면 실제 시드로 검증합니다")
         else:
-            check(True, "보유 종목 11건 표시", "삼성전자·대한광통신·SK증권 등")
+            for name in ("삼성전자", "대한광통신", "스트라드비젼", "매드업", "SK증권"):
+                if name not in hold_text:
+                    check(False, "보유 종목 표시", f"{name} 누락")
+                    break
+            else:
+                check(True, "보유 종목 11건 표시", "삼성전자·대한광통신·SK증권 등")
 
         total_txt = page.locator("#holdSummary").inner_text()
         check("평가금액" in total_txt and "매입금액" in total_txt, "계좌 요약", total_txt.splitlines()[0])
