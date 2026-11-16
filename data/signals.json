@@ -1,7 +1,7 @@
 {
  "app": "국장 매매 타이밍",
  "version": 1,
- "generated_at": "2026-11-16T16:36:57+09:00",
+ "generated_at": "2026-11-16T16:52:51+09:00",
  "market_date": "2026-11-16",
  "source": "네이버 금융 일봉 (fchart.stock.naver.com/sise.nhn)",
  "params": {
@@ -582,7 +582,7 @@
   {
    "code": "277810",
    "name": "레인보우로보틱스",
-   "market": "KOSPI",
+   "market": "KOSDAQ",
    "sector": "로봇",
    "date": "2026-11-16",
    "close": 362000,

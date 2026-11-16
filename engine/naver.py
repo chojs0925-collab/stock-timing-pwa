@@ -82,26 +82,50 @@ def fetch_daily(symbol: str, count: int = 160) -> dict:
     return {"symbol": symbol, "name": name, "rows": rows}
 
 
-def fetch_market_list(market: str, size: int = 100, pages: int = 1) -> list[dict]:
-    """시가총액 상위 종목 목록 (코드/이름/현재가/등락률/시총)."""
+def _num(value, default: float = 0.0) -> float:
+    """'1,234' / '-' / None 같은 네이버 표기 숫자를 float 로 바꾼다."""
+    if value is None:
+        return default
+    text = str(value).replace(",", "").strip()
+    if not text or text in ("-", "N/A"):
+        return default
+    try:
+        return float(text)
+    except ValueError:
+        return default
+
+
+def fetch_market_list(market: str, size: int = 100, pages: int = 1, start_page: int = 1) -> list[dict]:
+    """시총 상위 종목 목록 (코드/이름/현재가/등락률/시총/거래대금/종목구분).
+
+    - market_cap_eok, trading_value_eok: 둘 다 억원 단위로 맞춰서 돌려준다.
+      네이버 모바일 응답은 marketValue 가 억원, accumulatedTradingValue 가 백만원이라 단위가 다르다.
+      (예: 삼성전자 marketValue 11,499,630억 / accumulatedTradingValue 3,119,902백만원 = 3조1,199억)
+    - stock_end_type: 'stock' | 'etf' | 'etn' ... (spac 은 'stock' 으로 오므로 이름으로 걸러야 한다)
+    - trade_stop: 'TRADING' 이면 정상, 그 외는 거래정지/단일가 등
+    """
     out = []
-    for page in range(1, pages + 1):
+    base = "KOSPI" if market.upper() == "KOSPI" else "KOSDAQ"
+    for page in range(start_page, start_page + pages):
         raw = _get(LIST_URL.format(market=market, page=page, size=size))
         data = json.loads(raw.decode("utf-8"))
         for s in data.get("stocks", []):
-            try:
-                close = int(str(s.get("closePrice", "0")).replace(",", ""))
-            except ValueError:
+            close = int(_num(s.get("closePrice")))
+            if not s.get("itemCode") or not s.get("stockName"):
                 continue
             out.append(
                 {
                     "code": s.get("itemCode", ""),
                     "name": s.get("stockName", ""),
-                    "market": "KOSPI" if market.upper() == "KOSPI" else "KOSDAQ",
+                    "market": base,
                     "close": close,
-                    "change_pct": float(s.get("fluctuationsRatio") or 0),
-                    "market_cap_eok": int(float(str(s.get("marketValue") or "0").replace(",", ""))),
-                    "volume": int(str(s.get("accumulatedTradingVolume") or "0").replace(",", "")),
+                    "change_pct": float(_num(s.get("fluctuationsRatio"))),
+                    "market_cap_eok": int(_num(s.get("marketValue"))),
+                    "trading_value_eok": int(_num(s.get("accumulatedTradingValue")) / 100),
+                    "volume": int(_num(s.get("accumulatedTradingVolume"))),
+                    "stock_end_type": str(s.get("stockEndType") or ""),
+                    "trade_stop": str((s.get("tradeStopType") or {}).get("name") or ""),
+                    "tradable_status": str(s.get("tradableStatus") or ""),
                 }
             )
         time.sleep(0.15)

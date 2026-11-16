@@ -1,6 +1,7 @@
 # 국장 매매 타이밍 (PWA)
 
-국장 **일봉 스윙 매매 타이밍** 앱. 네이버 금융 공개 일봉으로 35종목(대형·중견 25 + 중소형주 10)을 분석해 신호등(🟢🟡🔴)과
+국장 **일봉 스윙 매매 타이밍** 앱. 네이버 금융 공개 일봉으로 35종목(코스피·코스닥 대형 + 시총 3,000억~4조원
+중소형주 균형, 매주 금요일 장후 유동성 상위 종목으로 자동 교체)을 분석해 신호등(🟢🟡🔴)과
 진입가·목표가·손절가를 보여주고, 증권사 앱에서 바로 주문할 수 있도록 수량·수수료·세금까지 계산한다.
 설치형 PWA(홈 화면 추가)로 오프라인에서도 마지막 신호를 볼 수 있다.
 
@@ -23,13 +24,15 @@
 │  ├─ holdings.json      공개용 보유 종목 자리 (빈 배열)
 │  ├─ backtest.json      신호 과거 검증 결과
 │  ├─ raw/{code}.json    종목별 일봉 캐시 (오프라인 재계산용)
-│  └─ history/           기준일별 추천 스냅샷 + index.json
+│  ├─ history/           기준일별 추천 스냅샷 + index.json
+│  └─ universe_rotation.json  마지막 주간 교체 결과(편입·편출 기록)
 └─ engine/
    ├─ naver.py           네이버 금융 일봉/종목목록 수집
    ├─ indicators.py      지표·KRX 호가단위·점수·수수료 계산
    ├─ analyze.py         분석 실행 → data/signals.json
+   ├─ rotate_universe.py 주 1회 분석 대상 교체 → engine/universe.json
    ├─ backtest.py        신호 과거 검증 → data/backtest.json
-   ├─ universe.json      분석 대상 35종목
+   ├─ universe.json      분석 대상 35종목(pinned=자동 교체 제외)
    ├─ make_icons.py      아이콘 생성
    └─ verify_ui.py       Playwright UI 자동 검증
 ```
@@ -39,9 +42,30 @@
 ```bash
 python3 engine/analyze.py          # 최신 일봉으로 signals.json 갱신 (약 30초)
 python3 engine/analyze.py --offline # 네트워크 없이 data/raw 캐시로 재계산
+python3 engine/rotate_universe.py --dry-run   # 이번 주에 교체하면 어떻게 되는지 확인(파일 안 씀)
+python3 engine/rotate_universe.py              # 실제 교체 → engine/universe.json 갱신
 python3 engine/backtest.py         # 신호 과거 검증 갱신
 python3 -m http.server 8765        # 로컬 확인: http://127.0.0.1:8765/index.html
 ```
+
+## 분석 대상 35종목은 매주 금요일 장후 자동 교체된다
+
+`engine/rotate_universe.py`가 네이버 금융 시가총액 목록으로 유니버스를 다시 채운다.
+정기 실행은 `scheduled-actions/📈-국장-타이밍-장후-자동-갱신`(금요일 15:40)이 `analyze.py` 앞에서 호출한다.
+
+- **제외**: 스팩 · ETF/ETN · 우선주 · 리츠/펀드 · 거래정지(거래대금 0) · 상장 65거래일 미만 ·
+  일봉이 끊긴 종목, 그리고 시총 3,000억원 미만
+- **버킷과 정원**: 코스피 대형(시총 4조원↑) 12 · 코스피 중소형(3,000억~4조원) 9 ·
+  코스닥 대형 5 · 코스닥 중소형 9 = 35종목
+- **순위**: 최근 20거래일 평균 거래대금(종가×거래량). 하루짜리 급등 거래량에 휘둘리지 않게 20일 평균을 쓴다.
+- **고정**: `universe.json`의 `"pinned": true` 종목은 무조건 유지한다(보유 종목·수동 관심 종목용.
+  코드만 있고 수량·평단가는 없다). 고정을 바꿀 때는 `--pin-code 005930`처럼 추가하거나 파일에서 직접 고친다.
+- **유지 우선**: 기존 종목은 정원의 1.5배 순위 안이면 그대로 두고, 신종목은 정원 안(상위 N위)에
+  들 때만 넣는다. 매주 35종목이 통째로 갈리는 것을 막는 장치다.
+- **선택 사항**: 관리종목처럼 공개 데이터로 안 잡히는 종목은 `engine/exclude.local.json`
+  (`{"codes": ["000000"]}` 또는 `["000000"]`)에 적어 두면 빠진다.
+- 교체 결과는 `data/universe_rotation.json`에 편입·편출로 남고, `--dry-run`은 `engine/universe.json`을
+  건드리지 않고 예상만 출력한다.
 
 ## 보유 종목은 어디에도 저장되지 않는다
 
