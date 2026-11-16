@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-16T07:21:33+09:00",
+ "generated_at": "2026-11-16T15:41:06+09:00",
  "records": [
   {
    "market_date": "2026-11-13",
@@ -39,6 +39,47 @@
      "entry": 8400,
      "target": 9080,
      "stop": 8060
+    }
+   ]
+  },
+  {
+   "market_date": "2026-11-16",
+   "picks": [
+    {
+     "code": "437730",
+     "name": "삼현",
+     "market": "KOSDAQ",
+     "close": 48500,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 100,
+     "entry": 48500,
+     "target": 52400,
+     "stop": 46550
+    },
+    {
+     "code": "020560",
+     "name": "아시아나항공",
+     "market": "KOSPI",
+     "close": 8490,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 87,
+     "entry": 8490,
+     "target": 9170,
+     "stop": 8150
+    },
+    {
+     "code": "068270",
+     "name": "셀트리온",
+     "market": "KOSPI",
+     "close": 214500,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 82,
+     "entry": 214500,
+     "target": 232000,
+     "stop": 205500
     }
    ]
   }

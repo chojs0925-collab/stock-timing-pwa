@@ -1,0 +1,294 @@
+{
+ "market_date": "2026-11-16",
+ "generated_at": "2026-11-16T15:41:06+09:00",
+ "picks": [
+  {
+   "code": "437730",
+   "name": "삼현",
+   "market": "KOSDAQ",
+   "close": 48500,
+   "signal": "BUY",
+   "signal_label": "🟢 매수",
+   "score": 100,
+   "entry": 48500,
+   "target": 52400,
+   "stop": 46550
+  },
+  {
+   "code": "020560",
+   "name": "아시아나항공",
+   "market": "KOSPI",
+   "close": 8490,
+   "signal": "BUY",
+   "signal_label": "🟢 매수",
+   "score": 87,
+   "entry": 8490,
+   "target": 9170,
+   "stop": 8150
+  },
+  {
+   "code": "068270",
+   "name": "셀트리온",
+   "market": "KOSPI",
+   "close": 214500,
+   "signal": "BUY",
+   "signal_label": "🟢 매수",
+   "score": 82,
+   "entry": 214500,
+   "target": 232000,
+   "stop": 205500
+  }
+ ],
+ "all": [
+  {
+   "code": "437730",
+   "name": "삼현",
+   "signal": "BUY",
+   "score": 100,
+   "close": 48500,
+   "entry": 48500,
+   "target": 52400,
+   "stop": 46550
+  },
+  {
+   "code": "020560",
+   "name": "아시아나항공",
+   "signal": "BUY",
+   "score": 87,
+   "close": 8490,
+   "entry": 8490,
+   "target": 9170,
+   "stop": 8150
+  },
+  {
+   "code": "068270",
+   "name": "셀트리온",
+   "signal": "BUY",
+   "score": 82,
+   "close": 214500,
+   "entry": 214500,
+   "target": 232000,
+   "stop": 205500
+  },
+  {
+   "code": "0039P0",
+   "name": "매드업",
+   "signal": "SELL",
+   "score": 42,
+   "close": 6260,
+   "entry": 6260,
+   "target": 6770,
+   "stop": 6000
+  },
+  {
+   "code": "035420",
+   "name": "NAVER",
+   "signal": "SELL",
+   "score": 42,
+   "close": 172900,
+   "entry": 172900,
+   "target": 186800,
+   "stop": 165900
+  },
+  {
+   "code": "035720",
+   "name": "카카오",
+   "signal": "SELL",
+   "score": 42,
+   "close": 32450,
+   "entry": 32450,
+   "target": 35050,
+   "stop": 31150
+  },
+  {
+   "code": "089030",
+   "name": "테크윙",
+   "signal": "SELL",
+   "score": 42,
+   "close": 37100,
+   "entry": 37100,
+   "target": 40100,
+   "stop": 35600
+  },
+  {
+   "code": "105560",
+   "name": "KB금융",
+   "signal": "SELL",
+   "score": 42,
+   "close": 161600,
+   "entry": 161600,
+   "target": 174600,
+   "stop": 155100
+  },
+  {
+   "code": "277810",
+   "name": "레인보우로보틱스",
+   "signal": "SELL",
+   "score": 42,
+   "close": 358500,
+   "entry": 358500,
+   "target": 387500,
+   "stop": 344000
+  },
+  {
+   "code": "010170",
+   "name": "대한광통신",
+   "signal": "SELL",
+   "score": 37,
+   "close": 12910,
+   "entry": 12910,
+   "target": 13950,
+   "stop": 12390
+  },
+  {
+   "code": "005930",
+   "name": "삼성전자",
+   "signal": "SELL",
+   "score": 33,
+   "close": 196800,
+   "entry": 196800,
+   "target": 213000,
+   "stop": 188900
+  },
+  {
+   "code": "000660",
+   "name": "SK하이닉스",
+   "signal": "SELL",
+   "score": 32,
+   "close": 1120000,
+   "entry": 1120000,
+   "target": 1210000,
+   "stop": 1075000
+  },
+  {
+   "code": "000270",
+   "name": "기아",
+   "signal": "SELL",
+   "score": 31,
+   "close": 95000,
+   "entry": 95000,
+   "target": 102600,
+   "stop": 91200
+  },
+  {
+   "code": "058470",
+   "name": "리노공업",
+   "signal": "SELL",
+   "score": 28,
+   "close": 49000,
+   "entry": 49000,
+   "target": 53000,
+   "stop": 47000
+  },
+  {
+   "code": "247540",
+   "name": "에코프로비엠",
+   "signal": "SELL",
+   "score": 28,
+   "close": 86000,
+   "entry": 86000,
+   "target": 92900,
+   "stop": 82500
+  },
+  {
+   "code": "004170",
+   "name": "신세계",
+   "signal": "SELL",
+   "score": 26,
+   "close": 251000,
+   "entry": 251000,
+   "target": 271500,
+   "stop": 240500
+  },
+  {
+   "code": "010950",
+   "name": "S-Oil",
+   "signal": "SELL",
+   "score": 23,
+   "close": 106500,
+   "entry": 106500,
+   "target": 115100,
+   "stop": 102200
+  },
+  {
+   "code": "012450",
+   "name": "한화에어로스페이스",
+   "signal": "SELL",
+   "score": 23,
+   "close": 649000,
+   "entry": 649000,
+   "target": 701000,
+   "stop": 623000
+  },
+  {
+   "code": "034020",
+   "name": "두산에너빌리티",
+   "signal": "SELL",
+   "score": 23,
+   "close": 44900,
+   "entry": 44900,
+   "target": 48500,
+   "stop": 43100
+  },
+  {
+   "code": "005380",
+   "name": "현대차",
+   "signal": "SELL",
+   "score": 21,
+   "close": 265500,
+   "entry": 265500,
+   "target": 287000,
+   "stop": 254500
+  },
+  {
+   "code": "475040",
+   "name": "스트라드비젼",
+   "signal": "SELL",
+   "score": 21,
+   "close": 2110,
+   "entry": 2110,
+   "target": 2280,
+   "stop": 2025
+  },
+  {
+   "code": "001510",
+   "name": "SK증권",
+   "signal": "SELL",
+   "score": 18,
+   "close": 1718,
+   "entry": 1718,
+   "target": 1856,
+   "stop": 1649
+  },
+  {
+   "code": "196170",
+   "name": "알테오젠",
+   "signal": "SELL",
+   "score": 18,
+   "close": 171700,
+   "entry": 171700,
+   "target": 185500,
+   "stop": 164800
+  },
+  {
+   "code": "329180",
+   "name": "HD현대중공업",
+   "signal": "SELL",
+   "score": 18,
+   "close": 270000,
+   "entry": 270000,
+   "target": 292000,
+   "stop": 259000
+  },
+  {
+   "code": "373220",
+   "name": "LG에너지솔루션",
+   "signal": "SELL",
+   "score": 18,
+   "close": 318500,
+   "entry": 318500,
+   "target": 344000,
+   "stop": 305500
+  }
+ ]
+}
