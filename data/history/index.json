@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-18T07:21:13+09:00",
+ "generated_at": "2026-11-18T15:41:16+09:00",
  "records": [
   {
    "market_date": "2026-11-13",
@@ -157,6 +157,71 @@
      "entry": 293000,
      "target": 316500,
      "stop": 281000
+    }
+   ]
+  },
+  {
+   "market_date": "2026-11-18",
+   "picks": [
+    {
+     "code": "068270",
+     "name": "셀트리온",
+     "market": "KOSPI",
+     "close": 207500,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 91,
+     "entry": 207500,
+     "target": 224500,
+     "stop": 199200
+    },
+    {
+     "code": "253450",
+     "name": "스튜디오드래곤",
+     "market": "KOSDAQ",
+     "close": 23700,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 88,
+     "entry": 23700,
+     "target": 25600,
+     "stop": 22750
+    },
+    {
+     "code": "437730",
+     "name": "삼현",
+     "market": "KOSDAQ",
+     "close": 53100,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 88,
+     "entry": 53100,
+     "target": 57400,
+     "stop": 50900
+    },
+    {
+     "code": "192820",
+     "name": "코스맥스",
+     "market": "KOSPI",
+     "close": 296000,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 87,
+     "entry": 296000,
+     "target": 320000,
+     "stop": 284000
+    },
+    {
+     "code": "0039P0",
+     "name": "매드업",
+     "market": "KOSDAQ",
+     "close": 7800,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 80,
+     "entry": 7800,
+     "target": 8430,
+     "stop": 7480
     }
    ]
   }
