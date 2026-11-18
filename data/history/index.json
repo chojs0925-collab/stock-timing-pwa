@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-18T15:41:16+09:00",
+ "generated_at": "2026-11-19T07:21:22+09:00",
  "records": [
   {
    "market_date": "2026-11-13",
@@ -176,52 +176,52 @@
      "stop": 199200
     },
     {
-     "code": "253450",
-     "name": "스튜디오드래곤",
-     "market": "KOSDAQ",
-     "close": 23700,
-     "signal": "BUY",
-     "signal_label": "🟢 매수",
-     "score": 88,
-     "entry": 23700,
-     "target": 25600,
-     "stop": 22750
-    },
-    {
      "code": "437730",
      "name": "삼현",
      "market": "KOSDAQ",
-     "close": 53100,
+     "close": 53200,
      "signal": "BUY",
      "signal_label": "🟢 매수",
      "score": 88,
-     "entry": 53100,
-     "target": 57400,
-     "stop": 50900
+     "entry": 53200,
+     "target": 57500,
+     "stop": 51000
     },
     {
      "code": "192820",
      "name": "코스맥스",
      "market": "KOSPI",
-     "close": 296000,
+     "close": 304500,
      "signal": "BUY",
      "signal_label": "🟢 매수",
-     "score": 87,
-     "entry": 296000,
-     "target": 320000,
-     "stop": 284000
+     "score": 83,
+     "entry": 304500,
+     "target": 329000,
+     "stop": 292000
     },
     {
      "code": "0039P0",
      "name": "매드업",
      "market": "KOSDAQ",
-     "close": 7800,
+     "close": 7790,
      "signal": "BUY",
      "signal_label": "🟢 매수",
      "score": 80,
-     "entry": 7800,
-     "target": 8430,
-     "stop": 7480
+     "entry": 7790,
+     "target": 8420,
+     "stop": 7470
+    },
+    {
+     "code": "277810",
+     "name": "레인보우로보틱스",
+     "market": "KOSDAQ",
+     "close": 408000,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 75,
+     "entry": 408000,
+     "target": 441000,
+     "stop": 391500
     }
    ]
   }
