@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-19T15:41:33+09:00",
+ "generated_at": "2026-11-20T07:21:16+09:00",
  "records": [
   {
    "market_date": "2026-11-13",
@@ -229,28 +229,16 @@
    "market_date": "2026-11-19",
    "picks": [
     {
-     "code": "437730",
-     "name": "삼현",
-     "market": "KOSDAQ",
-     "close": 52800,
-     "signal": "BUY",
-     "signal_label": "🟢 매수",
-     "score": 100,
-     "entry": 52800,
-     "target": 57100,
-     "stop": 50600
-    },
-    {
      "code": "020560",
      "name": "아시아나항공",
      "market": "KOSPI",
-     "close": 8810,
+     "close": 8790,
      "signal": "BUY",
      "signal_label": "🟢 매수",
      "score": 96,
-     "entry": 8810,
-     "target": 9520,
-     "stop": 8450
+     "entry": 8790,
+     "target": 9500,
+     "stop": 8430
     },
     {
      "code": "068270",
@@ -259,34 +247,46 @@
      "close": 214500,
      "signal": "BUY",
      "signal_label": "🟢 매수",
-     "score": 91,
+     "score": 96,
      "entry": 214500,
      "target": 232000,
      "stop": 205500
     },
     {
-     "code": "277810",
-     "name": "레인보우로보틱스",
+     "code": "437730",
+     "name": "삼현",
      "market": "KOSDAQ",
-     "close": 419500,
+     "close": 53000,
      "signal": "BUY",
      "signal_label": "🟢 매수",
-     "score": 82,
-     "entry": 419500,
-     "target": 453500,
-     "stop": 402500
+     "score": 95,
+     "entry": 53000,
+     "target": 57300,
+     "stop": 50800
     },
     {
      "code": "192820",
      "name": "코스맥스",
      "market": "KOSPI",
-     "close": 295000,
+     "close": 289000,
      "signal": "BUY",
      "signal_label": "🟢 매수",
-     "score": 78,
-     "entry": 295000,
-     "target": 319000,
-     "stop": 283000
+     "score": 83,
+     "entry": 289000,
+     "target": 312500,
+     "stop": 277000
+    },
+    {
+     "code": "277810",
+     "name": "레인보우로보틱스",
+     "market": "KOSDAQ",
+     "close": 422500,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 82,
+     "entry": 422500,
+     "target": 456500,
+     "stop": 405500
     }
    ]
   }
