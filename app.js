@@ -32,6 +32,17 @@ const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
 const signalClass = (signal) => ({ BUY: 'buy', WATCH: 'watch', SELL: 'sell' }[signal] || 'na');
 const pnlClass = (v) => (v > 0 ? 'up' : v < 0 ? 'down' : 'flat');
 
+/* 지수 5일선 상태 — analyze.py index_summary() 의 allow_new_buy */
+function marketInfo(market) {
+  const idx = state.data?.index || {};
+  return idx[String(market || '').toLowerCase()] || null;
+}
+function marketAllows(market) {
+  const info = marketInfo(market);
+  return !info || info.allow_new_buy !== false;
+}
+const marketName = (key) => (key === 'kospi' ? '코스피' : key === 'kosdaq' ? '코스닥' : key);
+
 /* ----------------------------------------------------------------- state */
 const state = {
   data: null,
@@ -205,6 +216,16 @@ function buildStockMap() {
   state.stockMap = map;
 }
 
+/* 개인 정리·손절 기준가 — 비어있으면 키를 만들지 않아 기존 저장 데이터와 그대로 호환된다 */
+function normalizeExit(raw) {
+  const out = {};
+  const target = Math.round(Number(raw.exitTarget ?? raw.exit_target) || 0);
+  const stop = Math.round(Number(raw.exitStop ?? raw.exit_stop) || 0);
+  if (target > 0) out.exitTarget = target;
+  if (stop > 0) out.exitStop = stop;
+  return out;
+}
+
 function seedHoldingsIfNeeded() {
   const stored = loadHoldings();
   if (stored !== null) {
@@ -213,6 +234,7 @@ function seedHoldingsIfNeeded() {
       name: h.name || (state.stockMap.get(String(h.code))?.name ?? String(h.code)),
       qty: Math.max(1, Math.round(Number(h.qty) || 0)),
       avg_price: Math.max(1, Math.round(Number(h.avg_price) || 0)),
+      ...normalizeExit(h),
     }));
     return;
   }
@@ -223,6 +245,7 @@ function seedHoldingsIfNeeded() {
     name: h.name,
     qty: Math.max(1, Math.round(Number(h.qty) || 1)),
     avg_price: Math.max(1, Math.round(Number(h.avg_price) || 1)),
+    ...normalizeExit(h),
   }));
   saveHoldings();
 }
@@ -271,23 +294,43 @@ function renderMarketCard() {
   const row = (label, d) => {
     if (!d) return '';
     const cls = d.change_pct > 0 ? 'up' : d.change_pct < 0 ? 'down' : 'flat';
+    const hasMa5 = d.ma5 !== undefined && d.ma5 !== null;
+    const allowed = d.allow_new_buy !== false;
+    const ma5Line = hasMa5
+      ? `<div class="mk-ma5">
+          <span>5일선 ${fmt(d.ma5)} ${allowed ? '위' : '아래'} (${fmtPct(d.above_ma5_pct, 2)})</span>
+          <span class="mk-badge ${allowed ? 'ok' : 'hold'}">${allowed ? '신규 매수 가능' : '신규 매수 보류'}</span>
+        </div>`
+      : '';
     return `<div class="mk-top">
       <span class="mk-label">${label}</span>
       <div class="mk-index"><b>${fmt(d.level)}</b><span class="chg ${cls}">${fmtPct(d.change_pct)}</span></div>
       <span class="mk-phase ${String(d.phase).includes('상승') || String(d.phase).includes('반등') ? 'up' : 'down'}">${escapeHtml(d.phase)}</span>
-    </div>`;
+    </div>${ma5Line}`;
   };
 
   const k = kospi || kosdaq;
+  const blocked = ['kospi', 'kosdaq'].filter((key) => idx[key] && idx[key].allow_new_buy === false);
   const below = k.level < k.ma20;
-  const note = below
-    ? `지수가 20일선(${fmt(k.ma20)}) 아래예요. 이런 구간에서는 추천 종목도 계획 금액의 절반만, 손절선은 짧게 가져가세요.`
-    : `지수가 20일선(${fmt(k.ma20)}) 위에서 버티고 있어요. 매수 신호 종목은 분할로 접근해도 좋습니다.`;
+  let note;
+  if (blocked.length) {
+    note = `${blocked.map(marketName).join('·')}가 5일선 아래예요. 이 시장 종목은 매수 조건을 채워도 <b>신규 매수 보류</b>로 내려 관망만 합니다. 새로 사기보다 보유 종목의 목표·손절 관리에 집중하는 구간이에요.`;
+  } else if (below) {
+    note = `지수가 20일선(${fmt(k.ma20)}) 아래예요. 이런 구간에서는 추천 종목도 계획 금액의 절반만, 손절선은 짧게 가져가세요.`;
+  } else {
+    note = `지수가 5일선(${fmt(k.ma5)}) 위에서 버티고 있어요. 매수 신호 종목은 분할로 접근해도 좋습니다.`;
+  }
+
+  const blockedCount = state.data.summary.blocked_buy || 0;
+  const blockedLine = blockedCount
+    ? `<p class="mk-sub">오늘 매수 조건을 채웠지만 5일선 아래라 보류된 종목 <b>${blockedCount}개</b></p>`
+    : '';
 
   box.innerHTML = `
     ${row('코스피', kospi)}
-    ${kosdaq ? `<div style="height:8px"></div>${row('코스닥', kosdaq)}` : ''}
+    ${kosdaq ? `<div style="height:10px"></div>${row('코스닥', kosdaq)}` : ''}
     <p class="mk-sub">분석 ${sum.analyzed}종목 · 평균 점수 ${sum.avg_score}점 · 오늘 평균 등락 ${fmtPct(sum.avg_change_pct)}</p>
+    ${blockedLine}
     <p class="mk-note">${note}</p>`;
 }
 
@@ -302,6 +345,13 @@ function renderChips() {
 function pickCard(s) {
   const cls = signalClass(s.signal);
   const chg = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : 'flat';
+  const blocked = marketAllows(s.market) === false;
+  const blockedFlag = blocked
+    ? '<div class="pick-flag hold">신규 매수 보류 — ' + escapeHtml(s.market) + ' 지수 5일선 아래</div>'
+    : '';
+  const atr = s.atr_pct
+    ? `<p class="pick-vol">14일 변동성(ATR) <b>${s.atr_pct}%</b> 기준 목표·손절 · +3% 도달 시 본전 손절</p>`
+    : '';
   return `
   <article class="pick-card ${cls}" data-code="${s.code}" role="button" tabindex="0" aria-label="${escapeHtml(s.name)} 주문 계산 열기">
     <div class="pick-head">
@@ -311,6 +361,7 @@ function pickCard(s) {
       </div>
       <span class="pill ${cls}">${s.signal_label}</span>
     </div>
+    ${blockedFlag}
     <div class="pick-price">
       <b>${fmt(s.close)}</b><span class="won">원</span>
       <span class="chg ${chg}">${fmtPct(s.change_pct)}</span>
@@ -324,6 +375,7 @@ function pickCard(s) {
       <div class="t"><span>목표 ${fmtPct(s.target_pct, 1)}</span><b>${fmt(s.target)}</b></div>
       <div class="s"><span>손절 ${fmtPct(s.stop_pct, 1)}</span><b>${fmt(s.stop)}</b></div>
     </div>
+    ${atr}
     <p class="reason">${escapeHtml(s.reason)}</p>
     <button class="pick-cta" type="button">주문 계산 · mPOP 가이드</button>
   </article>`;
@@ -331,6 +383,13 @@ function pickCard(s) {
 
 function renderPicks() {
   const picks = state.data.picks || [];
+  const head = $('#pickHead');
+  if (head) {
+    const blockedCount = picks.filter((s) => marketAllows(s.market) === false).length;
+    head.textContent = blockedCount
+      ? `신규 매수 보류 ${blockedCount}종목 · 점수 참고용`
+      : '매수 적합도 점수 순';
+  }
   $('#pickList').innerHTML = picks.length
     ? picks.map(pickCard).join('')
     : '<div class="card placeholder">오늘은 매수 신호가 없어요. 관망 구간입니다.</div>';
@@ -351,10 +410,11 @@ function renderAllList() {
   $('#allList').innerHTML = rows.map((s) => {
     const cls = signalClass(s.signal);
     const chg = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : 'flat';
+    const held = s.blocked_from === 'BUY' || (s.flags || []).includes('지수5일선하회');
     return `<div class="row" data-code="${s.code}" role="button" tabindex="0">
       <span class="dot ${cls}"></span>
       <div>
-        <div class="row-name">${escapeHtml(s.name)}<small>${s.code}</small></div>
+        <div class="row-name">${escapeHtml(s.name)}<small>${s.code}</small>${held ? '<span class="mini-flag">5일선↓ 보류</span>' : ''}</div>
         <div class="row-sub">RSI ${s.rsi14} · 거래량 ${s.vol_ratio}배 · 고점대비 ${fmtPct(s.drawdown_from_high20, 1)}</div>
       </div>
       <div class="row-score">${s.score}점</div>
@@ -362,6 +422,26 @@ function renderAllList() {
     </div>`;
   }).join('');
   $$('#allList [data-code]').forEach((el) => el.addEventListener('click', () => openSheet(el.dataset.code)));
+}
+
+/* 내가 정한 정리·손절 기준가 (localStorage 전용) */
+function exitInfo(h, close) {
+  const et = Number(h.exitTarget) || 0;
+  const es = Number(h.exitStop) || 0;
+  if (!et && !es) return { badge: '', line: '' };
+  let badge = '';
+  if (et && close >= et) badge = '<span class="exit-badge target">🎯 정리 구간 도달</span>';
+  else if (es && close <= es) badge = '<span class="exit-badge stop">⚠️ 손절선 이탈</span>';
+  const parts = [];
+  if (et) {
+    const gap = (et / close - 1) * 100;
+    parts.push(`<span class="${close >= et ? 'up' : ''}">내 정리 ${fmt(et)}원 <em>${close >= et ? '도달' : `까지 ${fmtPct(gap, 1)}`}</em></span>`);
+  }
+  if (es) {
+    const gap = (es / close - 1) * 100;
+    parts.push(`<span class="${close <= es ? 'down' : ''}">내 손절 ${fmt(es)}원 <em>${close <= es ? '이탈' : `까지 ${fmtPct(gap, 1)}`}</em></span>`);
+  }
+  return { badge, line: `<div class="exit-line">${parts.join('<i>·</i>')}</div>` };
 }
 
 function holdingView(h) {
@@ -387,6 +467,7 @@ function holdingView(h) {
   }
   const targetDist = stock?.target ? ((stock.target / close - 1) * 100) : null;
   const stopDist = stock?.stop ? ((stock.stop / close - 1) * 100) : null;
+  const exit = exitInfo(h, close);
 
   return `
   <article class="hold-card" data-code="${h.code}">
@@ -395,12 +476,16 @@ function holdingView(h) {
         <div class="hold-name">${escapeHtml(h.name)}</div>
         <div class="hold-meta">${h.qty}주 · 평균 ${fmt(h.avg_price)}원 · 현재 ${fmt(close)}원</div>
       </div>
-      <span class="pill ${cls}">${stock?.signal_label || '분석 전'}</span>
+      <div class="hold-tags">
+        ${exit.badge}
+        <span class="pill ${cls}">${stock?.signal_label || '분석 전'}</span>
+      </div>
     </div>
     <div class="hold-nums">
       <b>${fmt(value)}원</b>
       <span class="pnl ${pnlClass(pnl)}">${pnl >= 0 ? '+' : ''}${fmt(pnl)}원 (${fmtPct(pnlPct, 1)})</span>
     </div>
+    ${exit.line}
     ${range}
     ${targetDist !== null ? `<div class="hold-meta" style="margin-top:8px">목표까지 ${fmtPct(targetDist, 1)} · 손절까지 ${fmtPct(stopDist, 1)}</div>` : ''}
     ${stock?.stop && h.avg_price > stock.stop ? '<p class="hold-note">평균단가가 손절선보다 높아요. 표시된 목표·손절가는 지금 새로 진입할 때 기준입니다.</p>' : ''}
@@ -471,23 +556,35 @@ function renderBacktest() {
   const card = $('#backtestCard');
   if (!bt || !bt.summary) { card.classList.add('hidden'); return; }
   const s = bt.summary;
+  const be = s.breakevens ?? 0;
+  const beRate = s.breakeven_rate ?? (s.trades ? (be / s.trades) * 100 : 0);
+  const avgStop = Math.abs(Number(s.avg_stop_pct) || 0);
+  const avgTarget = Number(s.avg_target_pct) || 0;
   card.classList.remove('hidden');
   card.innerHTML = `
     <div class="section-head" style="margin:0 0 6px"><h2 style="font-size:14px">신호 과거 검증</h2><span class="hint">${bt.period}</span></div>
+    ${bt.rule ? `<p class="bt-rule">${escapeHtml(bt.rule)}</p>` : ''}
     <div class="bt-line"><span>검증한 매수 신호</span><b>${fmt(s.trades)}건</b></div>
-    <div class="bt-line"><span>목표(+8%) 먼저 도달</span><b>${s.win_rate.toFixed(1)}%</b></div>
-    <div class="bt-line"><span>손절(-4%) 먼저 도달</span><b>${s.loss_rate.toFixed(1)}%</b></div>
+    <div class="bt-line"><span>목표 도달</span><b class="up">${s.win_rate.toFixed(1)}%</b></div>
+    <div class="bt-line"><span>손절</span><b class="down">${s.loss_rate.toFixed(1)}%</b></div>
+    <div class="bt-line"><span>본전 손절 (+3% 뒤 되밀림)</span><b>${beRate.toFixed(1)}%</b></div>
     <div class="bt-line"><span>10일 내 평균 수익률</span><b class="${s.avg_return >= 0 ? 'up' : 'down'}">${fmtPct(s.avg_return, 2)}</b></div>
+    <div class="bt-line"><span>평균 손절 폭 / 목표 폭</span><b>${avgStop.toFixed(1)}% / ${avgTarget.toFixed(1)}%</b></div>
+    ${typeof s.pf === 'number' ? `<div class="bt-line"><span>이익/손실 비율(PF)</span><b>${s.pf.toFixed(2)}</b></div>` : ''}
+    ${s.blocked_by_index ? `<div class="bt-line"><span>5일선 아래로 건너뛴 신호</span><b>${fmt(s.blocked_by_index)}건</b></div>` : ''}
     <p class="footnote">${escapeHtml(bt.note || '')}</p>`;
 }
 
 function renderDataNotes() {
-  const p = state.data.params;
+  const p = state.data.params || {};
   const notes = [
-    `신호는 ${fmtDateLabel(state.data.market_date)} 종가 기준 일봉으로 계산했습니다. 장중 실시간 가격은 반영되지 않아요.`,
-    `수수료는 삼성증권 평생혜택 비대면 ${(p.fee_presets.benefit.rate * 100).toFixed(5)}%, 일반 온라인 ${(p.fee_presets.standard.rate * 100).toFixed(3)}% 중 선택해 계산합니다.`,
+    `신호는 ${fmtDateLabel(state.data.market_date)} 종가 기준 일봉으로 계산했습니다. 장중 실시간 가격은 새로고침 때 반영돼요.`,
+    `손절·목표는 종목별 14일 변동성(ATR)으로 정합니다. 손절 = 1.5×ATR14(3.5~7.0%), 목표 = 손절의 2배(7~14%), 수익 +3%에 닿으면 손절선을 본전(진입가)으로 옮깁니다.`,
+    `코스피·코스닥 지수가 각각 5일선 아래면 그 시장 종목은 매수 조건을 채워도 🟡 관망으로 내려 “신규 매수 보류”로 표시합니다.`,
+    `수수료는 삼성증권 평생혜택 비대면 ${(p.fee_presets?.benefit?.rate * 100 || 0.00364).toFixed(5)}%, 일반 온라인 ${(p.fee_presets?.standard?.rate * 100 || 0.015).toFixed(3)}% 중 선택해 계산합니다.`,
     '매도 세금은 코스피·코스닥 모두 0.20%(증권거래세 0.05% + 농특세 0.15%, 2026년 기준)로 계산했어요.',
-    `주문가는 KRX 호가단위로 맞췄습니다. ${p.tick_table}`,
+    `주문가는 KRX 호가단위로 맞췄습니다. ${p.tick_table || ''}`,
+    '내 종목의 정리·손절 기준가는 직접 정한 개인 기준으로, 이 폰에만 저장되고 서버·계좌로 전송되지 않아요.',
     '일봉 데이터 출처: 네이버 금융 공개 시세. 투자 자문이 아니라 참고 도구이며, 최종 판단과 주문은 본인이 mPOP에서 직접 합니다.',
   ];
   $('#dataNotes').innerHTML = notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('');
@@ -636,6 +733,20 @@ function openSheet(code) {
       <span class="metric">RSI <b>${stock.rsi14}</b></span>
       <span class="metric">거래량 <b>${stock.vol_ratio}배</b></span>
       <span class="metric">고점대비 <b>${fmtPct(stock.drawdown_from_high20, 1)}</b></span>
+      ${stock.atr_pct ? `<span class="metric">ATR14 <b>${stock.atr_pct}%</b></span>` : ''}
+    </div>
+
+    <div class="sheet-section">
+      <h3>3단 콤보 주문 기준</h3>
+      <div class="combo-grid">
+        <div><span>목표</span><b class="up">${fmtPct(stock.target_pct, 1)}</b><small>${fmt(stock.target)}원</small></div>
+        <div><span>손절</span><b class="down">${fmtPct(stock.stop_pct, 1)}</b><small>${fmt(stock.stop)}원</small></div>
+        <div><span>본전 손절</span><b>+${stock.breakeven_trigger_pct ?? 3}%</b><small>도달 시 진입가로</small></div>
+      </div>
+      <p class="warn-line">
+        손절 폭은 이 종목 14일 변동성(ATR ${stock.atr_pct ?? '-'}%)의 1.5배를 3.5~7.0% 범위로 자른 값이고, 목표는 손절의 2배예요.
+        ${marketAllows(stock.market) ? '' : `<b>지금은 ${escapeHtml(stock.market)} 지수가 5일선 아래라 신규 매수 보류 상태예요.</b>`}
+      </p>
     </div>
 
     <div class="sheet-section">
@@ -811,6 +922,8 @@ function startEdit(code) {
   $('#stockSearch').value = h.name;
   $('#avgPriceInput').value = h.avg_price;
   $('#qtyInput').value = h.qty;
+  $('#exitTargetInput').value = h.exitTarget || '';
+  $('#exitStopInput').value = h.exitStop || '';
   $('#saveHoldingBtn').textContent = '수정 저장';
   $('#formMsg').classList.add('hidden');
   $('#stockSearch').focus({ preventScroll: true });
@@ -823,6 +936,8 @@ function resetForm() {
   $('#addForm').classList.add('hidden');
   $('#saveHoldingBtn').textContent = '담기';
   $('#formMsg').classList.add('hidden');
+  $('#exitTargetInput').value = '';
+  $('#exitStopInput').value = '';
 }
 
 function resolveStock(text) {
@@ -844,6 +959,8 @@ function handleFormSubmit(e) {
   const stock = resolveStock($('#stockSearch').value);
   const avg = Math.round(Number($('#avgPriceInput').value));
   const qty = Math.round(Number($('#qtyInput').value));
+  const exitTarget = Math.round(Number($('#exitTargetInput').value)) || 0;
+  const exitStop = Math.round(Number($('#exitStopInput').value)) || 0;
   msg.classList.remove('hidden', 'error');
 
   if (!stock) {
@@ -853,6 +970,11 @@ function handleFormSubmit(e) {
   }
   if (!(avg > 0)) { msg.textContent = '매수 평균가를 입력해 주세요.'; msg.classList.add('error'); return; }
   if (!(qty > 0)) { msg.textContent = '보유 수량을 1주 이상 입력해 주세요.'; msg.classList.add('error'); return; }
+  if (exitTarget && exitStop && exitStop >= exitTarget) {
+    msg.textContent = '손절 기준가는 정리 기준가보다 낮아야 해요.';
+    msg.classList.add('error');
+    return;
+  }
 
   const editingCode = state.editingCode;
   if (editingCode && editingCode !== stock.code && state.holdings.some((h) => h.code === stock.code)) {
@@ -866,10 +988,16 @@ function handleFormSubmit(e) {
     return;
   }
 
+  const item = {
+    code: stock.code, name: stock.name, qty, avg_price: avg,
+    ...normalizeExit({ exitTarget, exitStop }),
+  };
   if (editingCode) {
-    state.holdings = state.holdings.filter((h) => h.code !== editingCode);
+    // 수정 시 목록 순서를 그대로 둔다
+    state.holdings = state.holdings.map((h) => (h.code === editingCode ? item : h));
+  } else {
+    state.holdings.push(item);
   }
-  state.holdings.push({ code: stock.code, name: stock.name, qty, avg_price: avg });
   saveHoldings();
   renderHoldings();
   toast(editingCode ? `${stock.name} 정보를 수정했어요` : `${stock.name} ${qty}주를 담았어요`);

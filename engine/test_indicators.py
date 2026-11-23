@@ -6,7 +6,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from indicators import (  # noqa: E402
-    ceil_to_tick, floor_to_tick, order_prices, rsi, round_to_tick, sma,
+    BREAKEVEN_TRIGGER_PCT, STOP_MAX_PCT, STOP_MIN_PCT, TARGET_RR, atr, ceil_to_tick,
+    dynamic_stop_pct, evaluate, floor_to_tick, order_prices, rsi, round_to_tick, sma,
     tick_size, trade_estimate,
 )
 
@@ -75,6 +76,78 @@ eq(round(rsi([100] * 30), 1), 50.0, "횡보 RSI 50")
 eq(round(rsi([100 - i for i in range(30)]), 1), 0.0, "계속 하락 RSI 0")
 eq(sma([1, 2, 3, 4, 5], 5), 3.0, "SMA(5)")
 eq(sma([1, 2], 5), None, "SMA 데이터 부족 → None")
+
+# --- ATR(14) -----------------------------------------------------------
+def bar(h, l, c, v=1000):
+    return {"high": h, "low": l, "close": c, "volume": v}
+
+# 고가-저가 20, 전일종가와의 차이 10씩 → True Range는 계속 20
+flat = []
+for i in range(16):
+    flat.append(bar(110, 90, 100))
+eq(atr(flat, 14), 20.0, "ATR: TR이 20으로 일정하면 20")
+eq(atr(flat[:14], 14), None, "ATR: 15봉 미만이면 None")
+eq(atr(flat[:15], 14), 20.0, "ATR: 딱 15봉이면 계산")
+
+# 상승 갭: 둘째 봉부터 시가 갭으로 TR이 커진다 (단순평균 ATR 검산)
+rows_atr = [bar(100, 98, 99), bar(112, 108, 110), bar(111, 109, 110), bar(115, 110, 114)]
+eqa = atr(rows_atr, 3)  # TR: [max(4,13,9)=13, max(2,1,1)=2, max(5,5,0)=5] → (13+2+5)/3
+if abs((eqa or 0) - 20 / 3) > 1e-9:
+    failures.append(f"ATR(3) Wilder 검산: {eqa} != {20/3}")
+    print(f"[FAIL] ATR(3) 검산: {eqa}")
+else:
+    print(f"[PASS] ATR(3) Wilder 검산: {round(eqa, 4)}")
+
+# --- 변동성 기반 손절·목표 ---------------------------------------------
+if not (STOP_MIN_PCT <= dynamic_stop_pct(10_000, 50) <= STOP_MIN_PCT + 1e-12):
+    failures.append("저변동 손절은 하한 3.5%")
+    print("[FAIL] 저변동 손절 하한")
+else:
+    print("[PASS] 저변동 손절은 하한 3.5%")
+if not (STOP_MAX_PCT - 1e-12 <= dynamic_stop_pct(10_000, 1_000) <= STOP_MAX_PCT + 1e-12):
+    failures.append("고변동 손절은 상한 7%")
+    print("[FAIL] 고변동 손절 상한")
+else:
+    print("[PASS] 고변동 손절은 상한 7%")
+if abs(dynamic_stop_pct(10_000, 300) - 0.045) > 1e-12:
+    failures.append(f"ATR 1.5배 손절: {dynamic_stop_pct(10_000, 300)}")
+    print("[FAIL] ATR 1.5배 손절")
+else:
+    print("[PASS] ATR 1.5배 손절: 4.5%")
+
+p = order_prices(10_000, atr14=300)
+eq((p["stop"], p["target"], p["basis"]), (9_550, 10_900, "atr"), "ATR 4.5% → 손절 9,550 / 목표 10,900")
+p = order_prices(10_000, atr14=50)
+eq((p["stop"], p["target"]), (9_650, 10_700), "저변동 ATR → 하한 3.5%/7.0%")
+p = order_prices(10_000, atr14=1_000)
+eq((p["stop"], p["target"]), (9_300, 11_400), "고변동 ATR → 상한 7.0%/14.0%")
+p = order_prices(10_000, 0.08, 0.04, atr14=1_000)
+eq((p["stop"], p["target"], p["basis"]), (9_600, 10_800, "fixed"), "비율을 직접 주면 고정 비율")
+eq(round(TARGET_RR, 1), 2.0, "목표 = 손절 2배")
+eq(BREAKEVEN_TRIGGER_PCT, 0.03, "본전 손절 트리거 +3%")
+
+# evaluate() 가 ATR 동적 목표·손절을 쓰는지 (65봉 이상 필요)
+series = []
+for i in range(70):
+    c = 10_000 + i * 20
+    series.append(bar(c + 120, c - 120, c))
+ev = evaluate(series)
+eq(ev["basis"], "atr", "evaluate() 기본은 ATR 기준")
+if not (ev["atr14"] and ev["atr_pct"] and ev["atr_pct"] > 0):
+    failures.append(f"evaluate() atr14/atr_pct 누락: {ev.get('atr14')}, {ev.get('atr_pct')}")
+    print("[FAIL] evaluate() atr14/atr_pct")
+else:
+    print(f"[PASS] evaluate() atr14={ev['atr14']} atr_pct={ev['atr_pct']}%")
+if not (-7.3 <= ev["stop_pct"] <= -3.4 and 6.8 <= ev["target_pct"] <= 14.5):
+    failures.append(f"evaluate() 동적 손절·목표 범위 이탈: {ev['stop_pct']} / {ev['target_pct']}")
+    print("[FAIL] evaluate() 동적 손절·목표 범위")
+else:
+    print(f"[PASS] evaluate() 동적 손절·목표: {ev['stop_pct']}% / {ev['target_pct']}%")
+if "변동성" not in ev["reason"]:
+    failures.append("evaluate() 근거 문구에 변동성 언급 없음")
+    print("[FAIL] evaluate() 근거 문구")
+else:
+    print("[PASS] evaluate() 근거 문구에 변동성 기준 포함")
 
 print()
 if failures:

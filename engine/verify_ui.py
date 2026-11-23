@@ -23,7 +23,9 @@ BASE = os.environ.get("APP_URL", "http://127.0.0.1:8765/index.html")
 CHROME = os.environ.get(
     "CHROME_BIN", "/workspace/tmp/chs/chrome-headless-shell-linux64/chrome-headless-shell"
 )
-LIB_PATH = "/workspace/tmp/libs/usr/lib/x86_64-linux-gnu"
+LIB_PATH = os.environ.get("CHROME_LIB_PATH", "/workspace/tmp/chlibs/usr/lib/x86_64-linux-gnu")
+if not os.path.isdir(LIB_PATH):
+    LIB_PATH = "/workspace/tmp/libs/usr/lib/x86_64-linux-gnu"
 
 results: list[tuple[bool, str]] = []
 
@@ -114,6 +116,19 @@ def main() -> int:
 
         market_txt = page.locator("#marketCard").inner_text()
         check("코스피" in market_txt and "코스닥" in market_txt, "시장 지수 카드", market_txt.splitlines()[0])
+        check("5일선" in market_txt, "지수 5일선 표시", [l for l in market_txt.splitlines() if "5일선" in l][0] if "5일선" in market_txt else "")
+        badge_ok = ("신규 매수 가능" in market_txt) or ("신규 매수 보류" in market_txt)
+        check(badge_ok, "신규 매수 가능/보류 배지", [l for l in market_txt.splitlines() if "신규 매수" in l][:2])
+
+        idx_data = data.get("index") or {}
+        blocked_markets = [k for k, v in idx_data.items() if v.get("allow_new_buy") is False]
+        expected_flags = sum(1 for p in data["picks"] if str(p.get("market", "")).lower() in blocked_markets)
+        flag_n = page.locator(".pick-flag").count()
+        if blocked_markets:
+            check(flag_n == expected_flags and flag_n > 0, "픽 카드 신규 매수 보류 배지",
+                  f"{flag_n}장 (차단 시장 {', '.join(blocked_markets)})")
+        else:
+            check(flag_n == 0, "지수 5일선 위 — 보류 배지 없음", f"{flag_n}장")
 
         body_text = page.locator("body").inner_text()
         bad = [w for w in ("NaN", "undefined", "[object Object]") if w in body_text]
@@ -126,6 +141,8 @@ def main() -> int:
         grid_labels = page.locator(".pick-card .price-grid").first.inner_text()
         check("진입가" in grid_labels and "목표" in grid_labels and "손절" in grid_labels,
               "진입·목표·손절 라벨", grid_labels.replace("\n", " "))
+        vol_txt = page.locator(".pick-card .pick-vol").first.inner_text()
+        check("ATR" in vol_txt and "본전" in vol_txt, "픽 카드 변동성·본전 손절 안내", vol_txt)
 
         # 신호등 색상 클래스
         pills = page.locator(".pick-card .pill").first.get_attribute("class")
@@ -149,6 +166,16 @@ def main() -> int:
         qty_txt = page.locator("#calcGrid .calc-cell").first.inner_text()
         expected_qty = int(1_000_000 // stock["entry"])
         check(f"{expected_qty}주" in qty_txt, "기본 예산 100만원 수량", qty_txt.splitlines()[1] if len(qty_txt.splitlines()) > 1 else qty_txt)
+
+        combo_txt = page.locator("#sheet .combo-grid").inner_text().replace(" ", "")
+        check("목표" in combo_txt and "손절" in combo_txt and "본전손절" in combo_txt,
+              "시트 3단 콤보 기준", combo_txt.replace("\n", " "))
+        want_t = f"+{stock['target_pct']:.1f}%"
+        want_s = f"{stock['stop_pct']:.1f}%"
+        check(want_t in combo_txt and want_s in combo_txt, "시트 동적 목표·손절 %",
+              f"{want_t} / {want_s}")
+        sheet_txt = page.locator("#sheet").inner_text()
+        check("ATR" in sheet_txt, "시트 ATR 변동성 표시", [l for l in sheet_txt.splitlines() if "ATR" in l][:1])
 
         page.locator('#quickChips [data-budget="2000000"]').click()
         page.wait_for_timeout(150)
@@ -190,12 +217,13 @@ def main() -> int:
         if not seed:
             print("[skip] 보유 종목 시드 없음 — data/holdings.local.json을 두면 실제 시드로 검증합니다")
         else:
-            for name in ("삼성전자", "대한광통신", "스트라드비젼", "매드업", "SK증권"):
-                if name not in hold_text:
-                    check(False, "보유 종목 표시", f"{name} 누락")
+            for h in seed:
+                if h.get("name") and h["name"] not in hold_text:
+                    check(False, "보유 종목 표시", f"{h['name']} 누락")
                     break
             else:
-                check(True, "보유 종목 11건 표시", "삼성전자·대한광통신·SK증권 등")
+                check(True, f"보유 종목 {len(seed)}건 표시",
+                      "·".join(h["name"] for h in seed[:4]) + " 등")
 
         total_txt = page.locator("#holdSummary").inner_text()
         check("평가금액" in total_txt and "매입금액" in total_txt, "계좌 요약", total_txt.splitlines()[0])
@@ -203,14 +231,35 @@ def main() -> int:
 
         page.screenshot(path=os.path.join(ROOT, "preview-holdings.png"), full_page=False)
 
-        # 추가
+        # 추가 (정리·손절 기준가 포함)
         page.locator("#toggleAddBtn").click()
         page.locator("#stockSearch").fill("기아")
         page.locator("#avgPriceInput").fill("95000")
         page.locator("#qtyInput").fill("3")
+        page.locator("#exitTargetInput").fill("130000")
+        page.locator("#exitStopInput").fill("60000")
         page.locator("#saveHoldingBtn").click()
         page.wait_for_timeout(250)
         check(page.locator(".hold-card").count() == len(seed) + 1, "종목 추가", "기아 3주")
+        last_card = page.locator(".hold-card").last.inner_text()
+        check("내 정리" in last_card and "내 손절" in last_card, "정리·손절 기준가 카드 표시",
+              [l for l in last_card.splitlines() if "내 정리" in l][:1])
+        stored_exit = page.evaluate(
+            "(JSON.parse(localStorage.getItem('gj.holdings.v1')||'[]').slice(-1)[0]||{})"
+        )
+        check(stored_exit.get("exitTarget") == 130000 and stored_exit.get("exitStop") == 60000,
+              "정리·손절 기준가 localStorage 저장",
+              f"exitTarget={stored_exit.get('exitTarget')} exitStop={stored_exit.get('exitStop')}")
+
+        # 정리 기준가를 현재가 아래로 낮추면 도달 배지가 뜨는지
+        page.locator('.hold-card [data-act="edit"]').last.click()
+        page.locator("#exitTargetInput").fill("1000")
+        page.locator("#exitStopInput").fill("500")
+        page.locator("#saveHoldingBtn").click()
+        page.wait_for_timeout(200)
+        badge_txt = page.locator(".hold-card").last.inner_text()
+        check("정리 구간 도달" in badge_txt or "손절선 이탈" in badge_txt,
+              "정리/손절 기준 도달 배지", [l for l in badge_txt.splitlines() if "도달" in l or "이탈" in l][:1])
 
         # 수정
         page.locator('.hold-card [data-act="edit"]').last.click()
@@ -235,12 +284,18 @@ def main() -> int:
         page.locator('.tabbar .tab[data-tab="rules"]').click()
         page.wait_for_selector("#view-rules.active")
         rules_text = page.locator("#view-rules").inner_text()
-        check("스윙 3대 원칙" in rules_text and "brokerAdapter" in rules_text, "원칙·연동 탭 콘텐츠")
+        check("스윙 3단 콤보" in rules_text and "brokerAdapter" in rules_text, "원칙·연동 탭 콘텐츠")
+        check("5일선 위에서만" in rules_text and "ATR" in rules_text and "본전 손절" in rules_text,
+              "3단 콤보 원칙 문구", "지수 5일선 · ATR · 본전 손절")
         check("추천 기록" in rules_text, "추천 기록 섹션")
         rec_rows = page.locator("#recordCard .record-row").count()
         check(rec_rows >= 1, "추천 기록 저장", f"{rec_rows}일치")
         bt = page.locator("#backtestCard").is_visible()
         check(bt, "신호 과거 검증 카드", page.locator("#backtestCard").inner_text().splitlines()[0] if bt else "숨김")
+        if bt:
+            bt_txt = page.locator("#backtestCard").inner_text()
+            check("본전 손절" in bt_txt and "PF" in bt_txt, "백테스트 본전 청산·PF 표시",
+                  [l for l in bt_txt.splitlines() if "본전" in l][:1])
         page.screenshot(path=os.path.join(ROOT, "preview-rules.png"), full_page=False)
 
         # ---------- 좁은 화면(360px) 확인 ----------

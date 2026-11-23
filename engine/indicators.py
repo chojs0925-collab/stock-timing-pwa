@@ -11,6 +11,27 @@ def sma(values: list[float], n: int) -> float | None:
     return sum(values[-n:]) / n
 
 
+def atr(rows: list[dict], n: int = 14) -> float | None:
+    """Wilder ATR(Average True Range). 일봉 high/low/close 사용.
+
+    True Range = max(고가-저가, |고가-전일종가|, |저가-전일종가|)
+    처음 n개의 단순평균으로 시작한 뒤 (이전 ATR×(n-1) + TR)/n 으로 평활한다.
+    rows 는 오래된 순 정렬이어야 한다.
+    """
+    if len(rows) < n + 1:
+        return None
+    trs = []
+    for i in range(1, len(rows)):
+        high = rows[i].get("high", rows[i]["close"])
+        low = rows[i].get("low", rows[i]["close"])
+        prev_close = rows[i - 1]["close"]
+        trs.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
+    value = sum(trs[:n]) / n
+    for tr in trs[n:]:
+        value = (value * (n - 1) + tr) / n
+    return value
+
+
 def rsi(closes: list[float], n: int = 14) -> float | None:
     """Wilder RSI."""
     if len(closes) < n + 1:
@@ -78,18 +99,53 @@ def ceil_to_tick(price: float) -> int:
     return int(-(-price // tick) * tick)
 
 
-def order_prices(close: int, target_pct: float = 0.08, stop_pct: float = 0.04) -> dict:
+# ------------------------------------------------- 변동성 기반 손절·목표
+# 백테스트(scratch/bt-exp/REPORT.md)에서 고정 -4% 손절은 이 종목들의 14일 ATR(중앙 6.7%)의
+# 0.6배에 불과해 하루 변동에도 걸렸다. 손절을 1.5×ATR(3.5~7% 클램프), 목표를 2배로 두면
+# 평균 수익률이 개선됐다. 그 값을 여기 기본값으로 둔다.
+STOP_ATR_MULT = 1.5
+STOP_MIN_PCT = 0.035
+STOP_MAX_PCT = 0.070
+TARGET_RR = 2.0              # 목표 = 손절의 2배 (3.5~7% → 7~14%)
+BREAKEVEN_TRIGGER_PCT = 0.03  # +3% 도달 시 손절가를 본전(진입가)으로 올린다
+LEGACY_TARGET_PCT = 0.08
+LEGACY_STOP_PCT = 0.04
+
+
+def dynamic_stop_pct(close: float, atr14: float | None,
+                     mult: float = STOP_ATR_MULT,
+                     floor_pct: float = STOP_MIN_PCT,
+                     cap_pct: float = STOP_MAX_PCT) -> float:
+    """1.5 × ATR14 / 종가 를 3.5%~7.0% 로 자른 손절 폭."""
+    if not close or close <= 0 or not atr14 or atr14 <= 0:
+        return LEGACY_STOP_PCT
+    return max(floor_pct, min(cap_pct, mult * atr14 / close))
+
+
+def order_prices(close: int, target_pct: float | None = None,
+                 stop_pct: float | None = None, atr14: float | None = None) -> dict:
     """진입가·목표가·손절가를 KRX 호가에 맞춰 산출.
 
     - 진입가: 현재가 호가 정렬(그대로 두면 이미 호가 단위)
-    - 목표가: +8% 를 호가로 올림 (지정가가 시장가보다 낮게 걸리지 않도록)
-    - 손절가: -4% 를 호가로 내림 (손절은 조금 더 가까운 쪽이 안전)
+    - 목표가: 목표 % 를 호가로 올림 (지정가가 시장가보다 낮게 걸리지 않도록)
+    - 손절가: 손절 % 를 호가로 내림 (손절은 조금 더 가까운 쪽이 안전)
+
+    비율 결정:
+    - atr14 를 주면 변동성 기준: 손절 = clamp(1.5×ATR14/종가, 3.5%, 7.0%), 목표 = 손절×2
+    - 비율을 직접 주면 그 고정 비율(기존 동작 호환)
+    - 아무것도 없으면 기존 기본값 +8% / -4%
     """
+    basis = "atr" if (atr14 and stop_pct is None) else "fixed"
+    if stop_pct is None:
+        stop_pct = dynamic_stop_pct(close, atr14) if atr14 else LEGACY_STOP_PCT
+    if target_pct is None:
+        target_pct = TARGET_RR * stop_pct if basis == "atr" else LEGACY_TARGET_PCT
+
     entry = round_to_tick(close)
     if entry <= 0:
         entry = close
-    target = ceil_to_tick(entry * (1 + target_pct))
-    stop = floor_to_tick(entry * (1 - stop_pct))
+    target = ceil_to_tick(round(entry * (1 + target_pct), 6))
+    stop = floor_to_tick(round(entry * (1 - stop_pct), 6))
     # 같은 호가가 되어버리는 경우 한 틱씩 벌린다.
     if target <= entry:
         target = ceil_to_tick(entry + tick_size(entry))
@@ -101,6 +157,7 @@ def order_prices(close: int, target_pct: float = 0.08, stop_pct: float = 0.04) -
         "stop": stop,
         "target_pct": round((target / entry - 1) * 100, 2),
         "stop_pct": round((stop / entry - 1) * 100, 2),
+        "basis": basis,
     }
 
 
@@ -193,8 +250,13 @@ def _pullback_score(dd: float) -> int:
     return 2
 
 
-def evaluate(rows: list[dict], target_pct: float = 0.08, stop_pct: float = 0.04) -> dict | None:
-    """일봉 리스트(오래된 순)를 받아 지표·점수·신호·주문가를 계산."""
+def evaluate(rows: list[dict], target_pct: float | None = None,
+             stop_pct: float | None = None) -> dict | None:
+    """일봉 리스트(오래된 순)를 받아 지표·점수·신호·주문가를 계산.
+
+    target_pct/stop_pct 를 비워두면 14일 ATR 변동성 기준으로 손절·목표를 잡는다.
+    숫자를 주면 그 고정 비율을 쓴다(기존 호출 호환).
+    """
     if len(rows) < 65:
         return None
     closes = [r["close"] for r in rows]
@@ -247,8 +309,11 @@ def evaluate(rows: list[dict], target_pct: float = 0.08, stop_pct: float = 0.04)
     else:
         signal, label = "SELL", "🔴 주의"
 
-    prices = order_prices(close, target_pct, stop_pct)
-    reason = _reason(signal, close, ma20, ma60, ma20_slope, rsi14, vol_ratio, drawdown, prices)
+    atr14 = atr(rows, 14)
+    atr_pct = (atr14 / close * 100) if (atr14 and close) else None
+    prices = order_prices(close, target_pct, stop_pct, atr14=atr14)
+    reason = _reason(signal, close, ma20, ma60, ma20_slope, rsi14, vol_ratio, drawdown,
+                     prices, atr_pct)
 
     return {
         "close": int(round(close)),
@@ -266,12 +331,16 @@ def evaluate(rows: list[dict], target_pct: float = 0.08, stop_pct: float = 0.04)
         "signal_label": label,
         "reason": reason,
         "flags": notes,
+        "atr14": round(atr14, 2) if atr14 else None,
+        "atr_pct": round(atr_pct, 2) if atr_pct else None,
+        "breakeven_trigger_pct": round(BREAKEVEN_TRIGGER_PCT * 100, 1),
         **prices,
         "history_days": len(rows),
     }
 
 
-def _reason(signal, close, ma20, ma60, ma20_slope, rsi14, vol_ratio, drawdown, prices) -> str:
+def _reason(signal, close, ma20, ma60, ma20_slope, rsi14, vol_ratio, drawdown,
+            prices, atr_pct=None) -> str:
     """초보자용 한두 문장 근거."""
     trend_up = close > ma20 and ma20 > ma60
     trend_down = close < ma20 and ma20 < ma60
@@ -306,8 +375,16 @@ def _reason(signal, close, ma20, ma60, ma20_slope, rsi14, vol_ratio, drawdown, p
         parts.append(f"RSI {rsi14:.0f}로 과매도권이에요")
 
     body = ". ".join(parts[:3])
+    stop_pct = prices["stop_pct"]
+    target_pct = prices["target_pct"]
+    vol_basis = f"14일 변동성(ATR {atr_pct:.1f}%)" if atr_pct else "변동성 기준"
+    trigger = BREAKEVEN_TRIGGER_PCT * 100
     if signal == "BUY":
-        return body + f". 진입 {prices['entry']:,}원, 목표 {prices['target']:,}원, 손절 {prices['stop']:,}원으로 잡았어요."
+        return (body + f". 진입 {prices['entry']:,}원. {vol_basis} 기준 목표 +{target_pct:.1f}%"
+                f"({prices['target']:,}원) · 손절 {stop_pct:.1f}%({prices['stop']:,}원)이고, "
+                f"+{trigger:.0f}%에 닿으면 손절선을 본전(진입가)으로 옮기세요.")
     if signal == "WATCH":
-        return body + f". 지금은 추격보다 {prices['stop']:,}원 손절선을 염두에 둔 소액 분할이 안전해요."
-    return ". ".join(parts[:2]) + ". 신규 매수는 피하고, 보유 중이라면 손절가를 지키세요."
+        return (body + f". 지금은 추격보다 {prices['stop']:,}원 손절선({stop_pct:.1f}%)을 염두에 둔 "
+                f"소액 분할이 안전해요. 손절·목표 폭은 {vol_basis}으로 정했어요.")
+    return (". ".join(parts[:2])
+            + f". 신규 매수는 피하고, 보유 중이라면 손절가({prices['stop']:,}원 · {vol_basis})를 지키세요.")

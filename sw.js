@@ -2,7 +2,7 @@
  * - 앱 셸: 캐시 우선 + 백그라운드 갱신
  * - data/*.json: 네트워크 우선 (실패하면 마지막 신호로 오프라인 동작)
  */
-const VERSION = 'gj-v3';
+const VERSION = 'gj-v4';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 

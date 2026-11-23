@@ -30,9 +30,10 @@ DATA = os.path.join(ROOT, "data")
 RAW = os.path.join(DATA, "raw")
 HIST = os.path.join(DATA, "history")
 
-TARGET_PCT = 0.08
+TARGET_PCT = 0.08   # 기존 호환용 기본값 — 실제 손절·목표는 14일 ATR 로 종목별 산출
 STOP_PCT = 0.04
 FETCH_COUNT = 160  # 약 8개월치 일봉
+INDEX_MA = 5       # 지수 5일선 위에서만 신규 매수
 
 
 def load_universe() -> list[dict]:
@@ -67,16 +68,31 @@ def build_catalog() -> list[dict]:
     return sorted(rows.values(), key=lambda s: (-s.get("market_cap_eok", 0), s["code"]))
 
 
-def index_summary(symbol: str) -> dict | None:
-    """시장 지수(KOSPI/KOSDAQ) 국면 요약."""
-    try:
-        rows = naver.fetch_daily(symbol, FETCH_COUNT)["rows"]
-    except Exception as exc:
-        print(f"[warn] {symbol} 지수 조회 실패: {exc}", file=sys.stderr)
-        return None
-    if len(rows) < 65:
+def index_summary(symbol: str, offline: bool = False) -> dict | None:
+    """시장 지수(KOSPI/KOSDAQ) 국면 요약 + 5일선 기준 신규 매수 허용 여부.
+
+    지수가 5일선 아래면 그 시장 종목의 신규 매수는 보류(allow_new_buy=False)한다.
+    일봉은 data/raw/index_{심볼}.json 에 캐시해 두어 오프라인·백테스트에서도 같은 5일선을 쓴다.
+    """
+    cache_path = os.path.join(RAW, f"index_{symbol}.json")
+    rows = None
+    if not offline:
+        try:
+            payload = naver.fetch_daily(symbol, FETCH_COUNT)
+            rows = payload["rows"]
+            os.makedirs(RAW, exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=1)
+        except Exception as exc:
+            print(f"[warn] {symbol} 지수 조회 실패: {exc}", file=sys.stderr)
+            rows = None
+    if rows is None and os.path.exists(cache_path):
+        with open(cache_path, encoding="utf-8") as f:
+            rows = json.load(f).get("rows") or []
+    if not rows or len(rows) < 65:
         return None
     closes = [r["close"] for r in rows]
+    ma5 = sum(closes[-INDEX_MA:]) / INDEX_MA
     ma20 = sum(closes[-20:]) / 20
     ma60 = sum(closes[-60:]) / 60
     level = closes[-1]
@@ -92,6 +108,9 @@ def index_summary(symbol: str) -> dict | None:
         "symbol": symbol,
         "level": round(level, 2),
         "change_pct": round((level / closes[-2] - 1) * 100, 2),
+        "ma5": round(ma5, 2),
+        "allow_new_buy": bool(level > ma5),
+        "above_ma5_pct": round((level / ma5 - 1) * 100, 2),
         "ma20": round(ma20, 2),
         "ma60": round(ma60, 2),
         "week_change_pct": round((level / closes[-6] - 1) * 100, 2) if len(closes) > 6 else 0,
@@ -164,6 +183,17 @@ def main() -> int:
     errors: list[dict] = []
     market_date = ""
 
+    # 지수 5일선 상태를 먼저 구해 두어야 종목별 신규 매수 차단을 적용할 수 있다.
+    indexes: dict[str, dict] = {}
+    for sym, key in (("KOSPI", "kospi"), ("KOSDAQ", "kosdaq")):
+        info = index_summary(sym, offline=args.offline)
+        if info:
+            indexes[key] = info
+    allow_new_buy = {key.upper(): bool(v.get("allow_new_buy", True)) for key, v in indexes.items()}
+    for key, allowed in allow_new_buy.items():
+        if not allowed:
+            print(f"[info] {key} 지수가 {INDEX_MA}일선 아래 — {key} 종목 신규 매수 보류", file=sys.stderr)
+
     for i, item in enumerate(universe, 1):
         code = item["code"]
         rows = None
@@ -186,7 +216,7 @@ def main() -> int:
             continue
 
         try:
-            result = evaluate(rows, TARGET_PCT, STOP_PCT)
+            result = evaluate(rows)  # 손절·목표는 14일 ATR 변동성 기준
         except Exception as exc:
             errors.append({"code": code, "name": item["name"], "error": f"계산 실패: {exc}"})
             continue
@@ -194,13 +224,23 @@ def main() -> int:
             errors.append({"code": code, "name": item["name"], "error": "데이터 부족"})
             continue
 
+        market = item.get("market", "KOSPI")
+        blocked = allow_new_buy.get(str(market).upper()) is False
+        result["market_blocked"] = blocked
+        if blocked and result["signal"] == "BUY":
+            # 지수가 5일선 아래면 점수가 높아도 신규 매수 차단 → 관망으로 내린다
+            result["signal"] = "WATCH"
+            result["signal_label"] = "🟡 관망"
+            result["flags"] = list(result.get("flags", [])) + ["지수5일선하회"]
+            result["blocked_from"] = "BUY"
+
         last_date = rows[-1]["date"]
         if last_date > market_date:
             market_date = last_date
         stocks.append({
             "code": code,
             "name": item.get("name") or fetched_name or code,
-            "market": item.get("market", "KOSPI"),
+            "market": market,
             "sector": item.get("sector", ""),
             "date": last_date,
             **result,
@@ -217,15 +257,21 @@ def main() -> int:
         return 1
 
     stocks.sort(key=lambda s: (-s["score"], s["code"]))
-    # 오늘의 픽: 매수 적합도(점수) 상위 5종목 중 매수 신호 우선, 3개 미만이면 점수 상위로 보충
+    # 오늘의 픽: 매수 적합도(점수) 상위 5종목. 신규 매수 차단 시장이 있으면
+    # 그 시장 종목은 "신규 매수 보류" 참고용으로 최대 5개까지 보여준다.
+    blocked_markets = [k for k, v in allow_new_buy.items() if not v]
+    fill_target = 5 if blocked_markets else 3
     buys = [s for s in stocks if s["signal"] == "BUY"][:5]
     picks = list(buys)
     for s in stocks:
-        if len(picks) >= 3:
+        if len(picks) >= fill_target:
             break
         if s not in picks:
             picks.append(s)
     picks.sort(key=lambda s: -s["score"])
+    # picks 를 그대로 담으면 stocks 객체와 섞이므로 얇은 사본에 표시용 필드를 붙인다
+    # advisory_only = 오늘 매수 신호가 아니라 "점수 참고용/보류" 카드
+    picks = [{**s, "advisory_only": s["signal"] != "BUY"} for s in picks]
 
     catalog = build_catalog() if not args.offline else []
     if catalog:
@@ -239,11 +285,6 @@ def main() -> int:
 
     counts = {k: sum(1 for s in stocks if s["signal"] == k) for k in ("BUY", "WATCH", "SELL")}
     holdings = load_holdings(stocks) if args.include_holdings else {"holdings": []}
-    indexes = {}
-    for sym, key in (("KOSPI", "kospi"), ("KOSDAQ", "kosdaq")):
-        info = index_summary(sym)
-        if info:
-            indexes[key] = info
     payload = {
         "app": "국장 매매 타이밍",
         "version": 1,
@@ -253,6 +294,18 @@ def main() -> int:
         "params": {
             "target_pct": TARGET_PCT,
             "stop_pct": STOP_PCT,
+            "atr_period": 14,
+            "atr_mult": 1.5,
+            "stop_min_pct": 0.035,
+            "stop_max_pct": 0.070,
+            "target_rr": 2.0,
+            "breakeven_trigger_pct": 0.03,
+            "index_ma": INDEX_MA,
+            "rules": (
+                "3단 콤보 — ① 손절 = 1.5×ATR14(3.5~7.0% 클램프) · 목표 = 손절×2(7~14%) "
+                "② +3% 도달 시 손절가를 본전(진입가)으로 이동 "
+                "③ 지수(코스피·코스닥) 5일선 위에서만 신규 매수"
+            ),
             "budget_default": 1_000_000,
             "fee_rate": DEFAULT_FEE_RATE,
             "fee_presets": FEE_PRESETS,
@@ -266,6 +319,8 @@ def main() -> int:
             "sell": counts["SELL"],
             "avg_change_pct": round(sum(s["change_pct"] for s in stocks) / len(stocks), 2),
             "avg_score": round(sum(s["score"] for s in stocks) / len(stocks), 1),
+            "blocked_buy": sum(1 for s in stocks if s.get("blocked_from") == "BUY"),
+            "blocked_markets": blocked_markets,
         },
         "index": indexes,
         "holdings_seed": holdings,
@@ -282,13 +337,17 @@ def main() -> int:
     snapshot = {
         "market_date": market_date,
         "generated_at": payload["generated_at"],
+        "index": {k: {"level": v["level"], "ma5": v["ma5"], "allow_new_buy": v["allow_new_buy"]}
+                  for k, v in indexes.items()},
         "picks": [
             {k: s[k] for k in ("code", "name", "market", "close", "signal", "signal_label",
-                               "score", "entry", "target", "stop")}
+                               "score", "entry", "target", "stop", "target_pct", "stop_pct",
+                               "atr_pct", "market_blocked", "advisory_only") if k in s}
             for s in picks
         ],
         "all": [
-            {k: s[k] for k in ("code", "name", "signal", "score", "close", "entry", "target", "stop")}
+            {k: s[k] for k in ("code", "name", "signal", "score", "close", "entry", "target",
+                               "stop", "atr_pct", "market_blocked") if k in s}
             for s in stocks
         ],
     }
