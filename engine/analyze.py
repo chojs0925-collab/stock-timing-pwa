@@ -23,7 +23,10 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import naver  # noqa: E402
-from indicators import DEFAULT_FEE_RATE, FEE_PRESETS, TAX_RATE, evaluate  # noqa: E402
+from indicators import (  # noqa: E402
+    DEEP_REBOUND_RET5_MAX, DEFAULT_FEE_RATE, FEE_PRESETS, REBOUND_RET5_MAX, REBOUND_RSI_MAX,
+    TAX_RATE, evaluate,
+)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
@@ -283,6 +286,23 @@ def main() -> int:
                 "stocks": catalog,
             }, f, ensure_ascii=False, indent=1)
 
+    # 과매도 반등 관찰 — 매수 후보(picks)와 섞지 않는 별도 목록. 많이 빠진 순으로 정렬.
+    rebound = [
+        {
+            "code": s["code"],
+            "name": s["name"],
+            "market": s["market"],
+            "sector": s.get("sector", ""),
+            "close": s["close"],
+            "change_pct": s["change_pct"],
+            "ret5": s["ret5"],
+            "rsi14": s["rsi14"],
+            "deep_rebound": bool(s["ret5"] is not None and s["ret5"] <= DEEP_REBOUND_RET5_MAX),
+        }
+        for s in stocks if s.get("rebound_watch")
+    ]
+    rebound.sort(key=lambda s: (s["ret5"] is None, s["ret5"] or 0))
+
     counts = {k: sum(1 for s in stocks if s["signal"] == k) for k in ("BUY", "WATCH", "SELL")}
     holdings = load_holdings(stocks) if args.include_holdings else {"holdings": []}
     payload = {
@@ -306,6 +326,13 @@ def main() -> int:
                 "② +3% 도달 시 손절가를 본전(진입가)으로 이동 "
                 "③ 지수(코스피·코스닥) 5일선 위에서만 신규 매수"
             ),
+            "rebound_rule": (
+                f"과매도 반등 관찰(참고 전용, 매수 신호 아님) — 5일 수익률 {REBOUND_RET5_MAX}% 이하 "
+                f"+ RSI14 {REBOUND_RSI_MAX:g} 미만 · {DEEP_REBOUND_RET5_MAX}% 이하는 깊은 과매도 강조"
+            ),
+            "rebound_ret5_max": REBOUND_RET5_MAX,
+            "rebound_rsi_max": REBOUND_RSI_MAX,
+            "deep_rebound_ret5_max": DEEP_REBOUND_RET5_MAX,
             "budget_default": 1_000_000,
             "fee_rate": DEFAULT_FEE_RATE,
             "fee_presets": FEE_PRESETS,
@@ -321,8 +348,10 @@ def main() -> int:
             "avg_score": round(sum(s["score"] for s in stocks) / len(stocks), 1),
             "blocked_buy": sum(1 for s in stocks if s.get("blocked_from") == "BUY"),
             "blocked_markets": blocked_markets,
+            "rebound_watch": len(rebound),
         },
         "index": indexes,
+        "rebound_watch": rebound,
         "holdings_seed": holdings,
         "picks": picks,
         "stocks": stocks,

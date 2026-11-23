@@ -6,7 +6,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from indicators import (  # noqa: E402
-    BREAKEVEN_TRIGGER_PCT, STOP_MAX_PCT, STOP_MIN_PCT, TARGET_RR, atr, ceil_to_tick,
+    BREAKEVEN_TRIGGER_PCT, DEEP_REBOUND_RET5_MAX, REBOUND_RET5_MAX, REBOUND_RSI_MAX,
+    STOP_MAX_PCT, STOP_MIN_PCT, TARGET_RR, atr, ceil_to_tick,
     dynamic_stop_pct, evaluate, floor_to_tick, order_prices, rsi, round_to_tick, sma,
     tick_size, trade_estimate,
 )
@@ -148,6 +149,68 @@ if "변동성" not in ev["reason"]:
     print("[FAIL] evaluate() 근거 문구")
 else:
     print("[PASS] evaluate() 근거 문구에 변동성 기준 포함")
+
+# --- 5일 수익률(ret5) / 과매도 반등 관찰(rebound_watch) ------------------
+def series(closes):
+    """종가 리스트 → evaluate() 용 일봉(고가·저가 종가 ±0.5%)."""
+    return [bar(c * 1.005, c * 0.995, c) for c in closes]
+
+
+# 64봉 횡보 뒤 5봉 하락 → 5거래일 전(6번째 뒤) 종가 10,000 대비 정확히 -8%
+eq(REBOUND_RET5_MAX, -8.0, "반등 관찰 5일 기준 -8.0%")
+eq(REBOUND_RSI_MAX, 30.0, "반등 관찰 RSI 기준 30 미만")
+eq(DEEP_REBOUND_RET5_MAX, -12.0, "깊은 과매도 -12.0%")
+
+ev_flat = evaluate(series([10000] * 64 + [9900, 9800, 9600, 9400, 9200]))
+eq(ev_flat["ret5"], -8.0, "ret5 계산(5일 -8.00%)")
+eq(ev_flat["rebound_watch"], True, "ret5 -8.0 + RSI 0 → 관찰 대상")
+
+# 경계 바로 위(+0.01%p)는 대상 아님
+ev_up = evaluate(series([10000] * 64 + [9900, 9800, 9600, 9400, 9201]))
+eq(ev_up["ret5"], -7.99, "ret5 -7.99%")
+eq(ev_up["rebound_watch"], False, "ret5 -7.99% → 관찰 대상 아님")
+
+# 상승 뒤 급락: ret5 -8.0% 이지만 RSI 30.0 → RSI는 30 미만이어야 하므로 대상 아님
+ev_rsi30 = evaluate(series([8000 + i * 30 for i in range(60)] + [9614, 9457, 9301, 9145, 8988]))
+eq(ev_rsi30["rsi14"], 30.0, "RSI 경계값 30.0")
+eq(ev_rsi30["ret5"], -8.0, "RSI 경계 케이스 ret5")
+eq(ev_rsi30["rebound_watch"], False, "RSI 30.0 → 관찰 대상 아님(30 미만)")
+
+# 같은 상승 뒤 9% 하락: ret5 -9.0% + RSI 27.6 → 대상
+ev_rsi27 = evaluate(series([8000 + i * 30 for i in range(60)] + [9594, 9418, 9242, 9067, 8891]))
+eq(ev_rsi27["rsi14"], 27.6, "RSI 27.6")
+eq(ev_rsi27["ret5"], -9.0, "RSI 27.6 케이스 ret5")
+eq(ev_rsi27["rebound_watch"], True, "ret5 -9.0 + RSI 27.6 → 관찰 대상")
+
+# 같은 ret5 -9.0% 에서 RSI 30.1 → 대상 아님 (RSI 경계 양쪽 확인)
+ev_rsi301 = evaluate(series([8000 + i * 35 for i in range(60)] + [9884, 9703, 9521, 9340, 9159]))
+eq(ev_rsi301["ret5"], -9.0, "RSI 30.1 케이스 ret5")
+eq(ev_rsi301["rsi14"], 30.1, "RSI 30.1")
+eq(ev_rsi301["rebound_watch"], False, "ret5 -9.0 + RSI 30.1 → 대상 아님")
+
+# 깊은 과매도 경계(-12.0%)도 5일 기준과 같은 방식으로 계산
+ev_deep = evaluate(series([10000] * 64 + [9800, 9600, 9400, 9200, 8800]))
+eq(ev_deep["ret5"], -12.0, "ret5 -12.0%(깊은 과매도 경계)")
+eq(ev_deep["rebound_watch"], True, "ret5 -12.0 → 관찰 대상")
+
+# 절대 원칙: 반등 관찰 플래그는 매수 신호·주문가에 영향 없음
+if ev_flat["signal"] == "BUY":
+    failures.append("rebound_watch 가 🟢 매수로 승격됨")
+    print("[FAIL] rebound_watch 매수 승격")
+else:
+    print(f"[PASS] rebound_watch 는 매수 승격 없음: signal={ev_flat['signal']} / score={ev_flat['score']}")
+eq(ev_flat["basis"], "atr", "반등 관찰 종목도 주문가는 기존 ATR 기준 그대로")
+# 플래그 유무와 무관하게 점수·신호가 같아야 한다(임계값만 바꿔 재계산해 확인)
+import indicators as _ind  # noqa: E402
+_prev = (_ind.REBOUND_RET5_MAX, _ind.REBOUND_RSI_MAX)
+try:
+    _ind.REBOUND_RET5_MAX, _ind.REBOUND_RSI_MAX = 1e9, 0.0  # 어떤 종목도 조건 미충족
+    ev_off = evaluate(series([10000] * 64 + [9900, 9800, 9600, 9400, 9200]))
+finally:
+    _ind.REBOUND_RET5_MAX, _ind.REBOUND_RSI_MAX = _prev
+eq((ev_off["rebound_watch"], ev_off["score"], ev_off["signal"], ev_off["entry"], ev_off["target"], ev_off["stop"]),
+   (False, ev_flat["score"], ev_flat["signal"], ev_flat["entry"], ev_flat["target"], ev_flat["stop"]),
+   "반등 조건 on/off 에도 점수·신호·주문가 동일")
 
 print()
 if failures:

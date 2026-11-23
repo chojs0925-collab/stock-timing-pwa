@@ -155,6 +155,88 @@ def main() -> int:
         page.screenshot(path=os.path.join(ROOT, "preview.png"), full_page=False)
         page.screenshot(path=os.path.join(ROOT, "preview-full.png"), full_page=True)
 
+        # ---------- 과매도 반등 관찰 (참고 전용 섹션) ----------
+        rb = data.get("rebound_watch") or []
+        heads = page.locator("#view-picks .section-head h2", has_text="과매도 반등 관찰").count()
+        check(heads == 1, "과매도 반등 관찰 섹션 존재", f"{heads}개")
+        order_ok = page.evaluate(
+            "() => { const p=document.querySelector('#pickList'), r=document.querySelector('#reboundList'),"
+            " a=document.querySelector('#allList');"
+            " return !!(p && r && a) && (p.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING) > 0"
+            " && (r.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING) > 0; }"
+        )
+        check(order_ok, "섹션 위치: 오늘의 픽 아래 · 전체 종목 위", "pickList → reboundList → allList")
+
+        note = page.locator("#reboundNote").inner_text()
+        note_bits = ["5일 -8% 이하", "RSI 30 미만", "매수 신호 아님", "1,110건",
+                     "+2.0%", "58%", "-5% 이하"]
+        missing = [b for b in note_bits if b not in note]
+        check(not missing, "반등 관찰 안내 문구(기준·근거·주의)", note if not missing else f"누락: {missing}")
+
+        rb_cards = page.locator("#reboundList .rebound-card").count()
+        check(rb_cards == len(rb), "반등 관찰 카드 개수", f"{rb_cards}장 / 데이터 {len(rb)}종목")
+
+        if blocked_markets:
+            check(page.locator("#reboundList").is_visible() and page.locator("#reboundNote").is_visible(),
+                  "지수 5일선 아래(매수 보류)에서도 섹션 노출",
+                  f"차단 시장 {', '.join(blocked_markets)} · 카드 {rb_cards}장")
+
+        if rb:
+            first_txt = page.locator("#reboundList .rebound-card").first.inner_text()
+            top = rb[0]
+            check(top["name"] in first_txt and top["code"] in first_txt and top["market"] in first_txt,
+                  "반등 카드 종목명·코드·시장", f"{top['name']} {top['code']} {top['market']}")
+            check(f"{top['close']:,}" in first_txt and f"{top['ret5']:.1f}%" in first_txt,
+                  "반등 카드 현재가·5일 수익률", first_txt.replace("\n", " "))
+            check(f"RSI {top['rsi14']}" in first_txt, "반등 카드 RSI", f"RSI {top['rsi14']}")
+            check(f"{top['change_pct']:+.2f}%" in first_txt, "반등 카드 당일 등락률",
+                  f"{top['change_pct']:+.2f}%")
+            no_plan = all(w not in first_txt for w in ("목표", "손절", "ATR"))
+            check(no_plan, "반등 카드에 ATR 목표·손절 없음", first_txt.replace("\n", " "))
+
+            rets_txt = page.evaluate(
+                "() => Array.from(document.querySelectorAll('#reboundList .rebound-card'))"
+                ".map(c => (c.querySelector('.rb-row .rb-chip b')||{}).textContent || '')"
+            )
+            rets = [float(t.replace("%", "").replace("+", "")) for t in rets_txt if t]
+            check(rets == sorted(rets), "정렬: 5일 낙폭 큰 순", ", ".join(f"{v:.2f}%" for v in rets))
+
+            deep_n = sum(1 for s in rb if s.get("deep_rebound"))
+            deep_badges = page.locator("#reboundList .rebound-badge").count()
+            check(deep_badges == deep_n, "깊은 과매도 배지(-12% 이하만)",
+                  f"배지 {deep_badges}개 / 데이터 {deep_n}개")
+
+            # 깊은 과매도 배지 렌더(데이터에 없어도 템플릿 검증) + 클릭 → 상세 시트
+            page.evaluate(
+                "() => { window.__rbBackup = state.data.rebound_watch;"
+                " state.data.rebound_watch = [{code:'000270', name:'기아', market:'KOSPI',"
+                " close:86400, change_pct:-1.14, ret5:-12.4, rsi14:22.1, deep_rebound:true}];"
+                " renderRebound(); }"
+            )
+            deep_txt = page.locator("#reboundList .rebound-card").first.inner_text()
+            check("깊은 과매도" in deep_txt, "깊은 과매도 배지 표시", deep_txt.replace("\n", " "))
+            page.evaluate(
+                "() => { state.data.rebound_watch = window.__rbBackup; renderRebound(); }"
+            )
+
+            page.locator("#reboundList .rebound-card").first.click()
+            page.wait_for_selector("#sheet:not(.hidden)")
+            check(page.locator("#sheetTitle").inner_text() == top["name"],
+                  "반등 카드 클릭 → 종목 상세 시트", page.locator("#sheetTitle").inner_text())
+            check("3단 콤보" in page.locator("#sheet").inner_text(), "상세 시트 3단 콤보 확인 가능")
+            page.locator("#sheet .sheet-close").click()
+            page.wait_for_timeout(250)
+
+        # 빈 목록 안내 문구(오늘 0종목인 날의 화면)
+        page.evaluate(
+            "() => { window.__rbBackup2 = state.data.rebound_watch;"
+            " state.data.rebound_watch = []; renderRebound(); }"
+        )
+        empty_txt = page.locator("#reboundList").inner_text()
+        check("급락 반등 관찰 종목이 없어요" in empty_txt, "반등 관찰 0종목 빈 안내", empty_txt)
+        page.evaluate("() => { state.data.rebound_watch = window.__rbBackup2; renderRebound(); }")
+        check(page.locator("#reboundList .rebound-card").count() == len(rb), "반등 목록 복원", f"{len(rb)}장")
+
         # ---------- 시트: 예산 계산 ----------
         first_card = page.locator(".pick-card").first
         first_code = first_card.get_attribute("data-code")
@@ -329,6 +411,9 @@ def main() -> int:
         page.wait_for_selector(".pick-card", timeout=15000)
         offline_picks = page.locator(".pick-card").count()
         check(offline_picks == len(data["picks"]), "오프라인에서도 마지막 신호 표시", f"{offline_picks}장")
+        offline_rb = page.locator("#reboundList .rebound-card").count()
+        check(offline_rb == len(data.get("rebound_watch") or []), "오프라인에서도 반등 관찰 유지",
+              f"{offline_rb}장")
         ctx.set_offline(False)
 
         # ---------- 결과 ----------

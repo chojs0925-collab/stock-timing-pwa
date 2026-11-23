@@ -111,6 +111,16 @@ BREAKEVEN_TRIGGER_PCT = 0.03  # +3% 도달 시 손절가를 본전(진입가)으
 LEGACY_TARGET_PCT = 0.08
 LEGACY_STOP_PCT = 0.04
 
+# ------------------------------------------- 과매도 반등 관찰(참고 전용)
+# 백테스트(scratch/bt-rebound/REPORT.md): 5일 -8% 이하 + RSI14 30 미만은
+# 6년 1,110건에서 5일 평균 +2.0%, 승률 58%로 아무 날 매수(+0.32%)보다 나았다.
+# 다만 6건 중 1건은 5일 뒤 -5% 이하로 더 빠졌고, ATR 손절·목표를 기계적으로 붙이면
+# 기대값이 떨어졌다(+2.55% → +1.55%). 그래서 매수 신호(signal/score/order_prices)와
+# 완전히 분리한 관찰 목록으로만 쓴다.
+REBOUND_RET5_MAX = -8.0      # 5거래일 수익률(%)이 이 값 이하
+REBOUND_RSI_MAX = 30.0       # RSI14가 이 값 미만
+DEEP_REBOUND_RET5_MAX = -12.0  # UI에서 '깊은 과매도'로 강조(성과가 가장 좋았던 구간)
+
 
 def dynamic_stop_pct(close: float, atr14: float | None,
                      mult: float = STOP_ATR_MULT,
@@ -265,6 +275,11 @@ def evaluate(rows: list[dict], target_pct: float | None = None,
 
     close = closes[-1]
     prev = closes[-2]
+    # 5거래일 수익률(%): 6봉 미만이면 계산하지 않는다.
+    # 표시값(소수 2자리)과 조건 판정이 어긋나지 않도록 같은 자리에서 반올림한 값을 쓴다.
+    ret5 = None
+    if len(rows) >= 6 and rows[-6]["close"]:
+        ret5 = round(((close / rows[-6]["close"]) - 1) * 100, 2)
     ma20 = sma(closes, 20)
     ma60 = sma(closes, 60)
     ma20_prev = sma(closes[:-5], 20)  # 5거래일 전 20일선
@@ -309,6 +324,14 @@ def evaluate(rows: list[dict], target_pct: float | None = None,
     else:
         signal, label = "SELL", "🔴 주의"
 
+    # 과매도 반등 관찰 — 매수 신호가 아니라 '지켜볼 목록' 플래그다.
+    # signal/picks/order_prices/score 는 이 값과 무관하게 그대로 계산된다.
+    rsi14_disp = round(rsi14, 1) if rsi14 is not None else None
+    rebound_watch = bool(
+        ret5 is not None and rsi14_disp is not None
+        and ret5 <= REBOUND_RET5_MAX and rsi14_disp < REBOUND_RSI_MAX
+    )
+
     atr14 = atr(rows, 14)
     atr_pct = (atr14 / close * 100) if (atr14 and close) else None
     prices = order_prices(close, target_pct, stop_pct, atr14=atr14)
@@ -323,6 +346,8 @@ def evaluate(rows: list[dict], target_pct: float | None = None,
         "ma60": int(round(ma60)),
         "ma20_slope5": round(ma20_slope, 2),
         "rsi14": round(rsi14, 1),
+        "ret5": ret5,
+        "rebound_watch": rebound_watch,
         "vol_ratio": round(vol_ratio, 2),
         "drawdown_from_high20": round(drawdown, 2),
         "high20": int(high20),

@@ -268,6 +268,7 @@ function renderAll() {
   renderMarketCard();
   renderChips();
   renderPicks();
+  renderRebound();
   renderAllList();
   renderHoldings();
   renderRecords();
@@ -398,6 +399,53 @@ function renderPicks() {
       if (e.target.closest('button, a')) e.preventDefault();
       openSheet(el.dataset.code);
     });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(el.dataset.code); }
+    });
+  });
+}
+
+/* ------------------------------------------- 과매도 반등 관찰 (참고 전용)
+ * engine/indicators.py 의 rebound_watch — 5일 -8% 이하 + RSI 30 미만.
+ * 매수 신호(signal/score)와 별개 트랙이다: ATR 목표·손절을 붙이지 않고,
+ * 카드를 눌러 종목 상세 시트만 연다.
+ */
+function reboundCard(s) {
+  const chg = s.change_pct > 0 ? 'up' : s.change_pct < 0 ? 'down' : 'flat';
+  const deep = s.deep_rebound
+    ? '<span class="rebound-badge">깊은 과매도</span>'
+    : '';
+  return `
+  <article class="rebound-card" data-code="${s.code}" role="button" tabindex="0" aria-label="${escapeHtml(s.name)} 상세 열기">
+    <div class="rb-top">
+      <div class="rb-id">
+        <div class="rb-name">${escapeHtml(s.name)}</div>
+        <div class="rb-meta">${s.code} · ${escapeHtml(s.market)}</div>
+      </div>
+      <div class="rb-price">
+        <b>${fmt(s.close)}</b><span class="won">원</span>
+        <span class="chg ${chg}">${fmtPct(s.change_pct)}</span>
+      </div>
+    </div>
+    <div class="rb-row">
+      <span class="rb-chip ret">5일 <b>${fmtPct(s.ret5, 1)}</b></span>
+      <span class="rb-chip rsi">RSI <b>${s.rsi14}</b></span>
+      ${deep}
+    </div>
+  </article>`;
+}
+
+function renderRebound() {
+  const list = state.data.rebound_watch || [];
+  const hint = $('#reboundCount');
+  if (hint) hint.textContent = list.length ? `${list.length}종목 · 5일 낙폭순` : '오늘 0종목';
+  const box = $('#reboundList');
+  if (!box) return;
+  box.innerHTML = list.length
+    ? list.map(reboundCard).join('')
+    : '<div class="card empty">오늘 조건에 해당하는 급락 반등 관찰 종목이 없어요.</div>';
+  $$('#reboundList [data-code]').forEach((el) => {
+    el.addEventListener('click', () => openSheet(el.dataset.code));
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(el.dataset.code); }
     });
