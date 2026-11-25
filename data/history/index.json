@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-25T07:22:45+09:00",
+ "generated_at": "2026-11-25T15:43:53+09:00",
  "records": [
   {
    "market_date": "2026-11-13",
@@ -532,6 +532,96 @@
      "atr_pct": 4.72,
      "market_blocked": false,
      "advisory_only": false
+    }
+   ]
+  },
+  {
+   "market_date": "2026-11-25",
+   "picks": [
+    {
+     "code": "068270",
+     "name": "셀트리온",
+     "market": "KOSPI",
+     "close": 217000,
+     "signal": "WATCH",
+     "signal_label": "🟡 관망",
+     "score": 95,
+     "entry": 217000,
+     "target": 242500,
+     "stop": 204000,
+     "target_pct": 11.75,
+     "stop_pct": -5.99,
+     "atr_pct": 3.84,
+     "market_blocked": true,
+     "advisory_only": true
+    },
+    {
+     "code": "437730",
+     "name": "삼현",
+     "market": "KOSDAQ",
+     "close": 60600,
+     "signal": "WATCH",
+     "signal_label": "🟡 관망",
+     "score": 90,
+     "entry": 60600,
+     "target": 69100,
+     "stop": 56300,
+     "target_pct": 14.03,
+     "stop_pct": -7.1,
+     "atr_pct": 8.62,
+     "market_blocked": true,
+     "advisory_only": true
+    },
+    {
+     "code": "277810",
+     "name": "레인보우로보틱스",
+     "market": "KOSDAQ",
+     "close": 463500,
+     "signal": "WATCH",
+     "signal_label": "🟡 관망",
+     "score": 87,
+     "entry": 463500,
+     "target": 529000,
+     "stop": 431000,
+     "target_pct": 14.13,
+     "stop_pct": -7.01,
+     "atr_pct": 7.26,
+     "market_blocked": true,
+     "advisory_only": true
+    },
+    {
+     "code": "020560",
+     "name": "아시아나항공",
+     "market": "KOSPI",
+     "close": 8440,
+     "signal": "WATCH",
+     "signal_label": "🟡 관망",
+     "score": 86,
+     "entry": 8440,
+     "target": 9600,
+     "stop": 7860,
+     "target_pct": 13.74,
+     "stop_pct": -6.87,
+     "atr_pct": 4.55,
+     "market_blocked": true,
+     "advisory_only": true
+    },
+    {
+     "code": "263860",
+     "name": "지니언스",
+     "market": "KOSDAQ",
+     "close": 42050,
+     "signal": "WATCH",
+     "signal_label": "🟡 관망",
+     "score": 83,
+     "entry": 42050,
+     "target": 47950,
+     "stop": 39100,
+     "target_pct": 14.03,
+     "stop_pct": -7.02,
+     "atr_pct": 11.87,
+     "market_blocked": true,
+     "advisory_only": true
     }
    ]
   }
