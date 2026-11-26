@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-26T07:25:10+09:00",
+ "generated_at": "2026-11-26T15:45:14+09:00",
  "records": [
   {
    "market_date": "2026-11-13",
@@ -622,6 +622,96 @@
      "atr_pct": 10.3,
      "market_blocked": true,
      "advisory_only": true
+    }
+   ]
+  },
+  {
+   "market_date": "2026-11-26",
+   "picks": [
+    {
+     "code": "437730",
+     "name": "삼현",
+     "market": "KOSDAQ",
+     "close": 60100,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 96,
+     "entry": 60100,
+     "target": 68600,
+     "stop": 55800,
+     "target_pct": 14.14,
+     "stop_pct": -7.15,
+     "atr_pct": 8.88,
+     "market_blocked": false,
+     "advisory_only": false
+    },
+    {
+     "code": "053800",
+     "name": "안랩",
+     "market": "KOSDAQ",
+     "close": 164500,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 90,
+     "entry": 164500,
+     "target": 187600,
+     "stop": 152900,
+     "target_pct": 14.04,
+     "stop_pct": -7.05,
+     "atr_pct": 8.91,
+     "market_blocked": false,
+     "advisory_only": false
+    },
+    {
+     "code": "263860",
+     "name": "지니언스",
+     "market": "KOSDAQ",
+     "close": 40350,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 87,
+     "entry": 40350,
+     "target": 46000,
+     "stop": 37500,
+     "target_pct": 14.0,
+     "stop_pct": -7.06,
+     "atr_pct": 12.08,
+     "market_blocked": false,
+     "advisory_only": false
+    },
+    {
+     "code": "277810",
+     "name": "레인보우로보틱스",
+     "market": "KOSDAQ",
+     "close": 467000,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 87,
+     "entry": 467000,
+     "target": 533000,
+     "stop": 434000,
+     "target_pct": 14.13,
+     "stop_pct": -7.07,
+     "atr_pct": 7.32,
+     "market_blocked": false,
+     "advisory_only": false
+    },
+    {
+     "code": "0039P0",
+     "name": "매드업",
+     "market": "KOSDAQ",
+     "close": 8340,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 83,
+     "entry": 8340,
+     "target": 9510,
+     "stop": 7750,
+     "target_pct": 14.03,
+     "stop_pct": -7.07,
+     "atr_pct": 9.57,
+     "market_blocked": false,
+     "advisory_only": false
     }
    ]
   }
