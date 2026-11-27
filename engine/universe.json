@@ -50,7 +50,7 @@
     {"code": "263860", "name": "지니언스", "market": "KOSDAQ", "sector": "", "bucket": "KOSDAQ_M", "pinned": false, "liq20_eok": 1170.7},
     {"code": "053800", "name": "안랩", "market": "KOSDAQ", "sector": "", "bucket": "KOSDAQ_M", "pinned": false, "liq20_eok": 933.2},
     {"code": "403870", "name": "HPSP", "market": "KOSDAQ", "sector": "", "bucket": "KOSDAQ_M", "pinned": false, "liq20_eok": 648.6},
-    {"code": "010170", "name": "대한광통신", "market": "KOSDAQ", "sector": "통신장비", "bucket": "KOSDAQ_M", "pinned": true, "liq20_eok": 642.3},
+    {"code": "010170", "name": "대한광통신", "market": "KOSDAQ", "sector": "통신장비", "bucket": "KOSDAQ_M", "pinned": false, "liq20_eok": 642.3},
     {"code": "437730", "name": "삼현", "market": "KOSDAQ", "sector": "자동차부품", "bucket": "KOSDAQ_M", "pinned": true, "liq20_eok": 302.1},
     {"code": "089030", "name": "테크윙", "market": "KOSDAQ", "sector": "반도체장비", "bucket": "KOSDAQ_M", "pinned": true, "liq20_eok": 169.2},
     {"code": "0039P0", "name": "매드업", "market": "KOSDAQ", "sector": "광고·AI", "bucket": "KOSDAQ_M", "pinned": true, "liq20_eok": 153.0},
