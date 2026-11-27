@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-27T07:28:54+09:00",
+ "generated_at": "2026-11-27T15:48:03+09:00",
  "records": [
   {
    "market_date": "2026-11-13",
@@ -710,6 +710,96 @@
      "target_pct": 14.11,
      "stop_pct": -7.06,
      "atr_pct": 9.55,
+     "market_blocked": false,
+     "advisory_only": false
+    }
+   ]
+  },
+  {
+   "market_date": "2026-11-27",
+   "picks": [
+    {
+     "code": "437730",
+     "name": "삼현",
+     "market": "KOSDAQ",
+     "close": 60500,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 96,
+     "entry": 60500,
+     "target": 69000,
+     "stop": 56200,
+     "target_pct": 14.05,
+     "stop_pct": -7.11,
+     "atr_pct": 8.84,
+     "market_blocked": false,
+     "advisory_only": false
+    },
+    {
+     "code": "192820",
+     "name": "코스맥스",
+     "market": "KOSPI",
+     "close": 315000,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 95,
+     "entry": 315000,
+     "target": 359500,
+     "stop": 292500,
+     "target_pct": 14.13,
+     "stop_pct": -7.14,
+     "atr_pct": 7.36,
+     "market_blocked": false,
+     "advisory_only": false
+    },
+    {
+     "code": "068270",
+     "name": "셀트리온",
+     "market": "KOSPI",
+     "close": 221000,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 91,
+     "entry": 221000,
+     "target": 245500,
+     "stop": 208500,
+     "target_pct": 11.09,
+     "stop_pct": -5.66,
+     "atr_pct": 3.67,
+     "market_blocked": false,
+     "advisory_only": false
+    },
+    {
+     "code": "0039P0",
+     "name": "매드업",
+     "market": "KOSDAQ",
+     "close": 9020,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 83,
+     "entry": 9020,
+     "target": 10290,
+     "stop": 8380,
+     "target_pct": 14.08,
+     "stop_pct": -7.1,
+     "atr_pct": 8.98,
+     "market_blocked": false,
+     "advisory_only": false
+    },
+    {
+     "code": "263860",
+     "name": "지니언스",
+     "market": "KOSDAQ",
+     "close": 40950,
+     "signal": "BUY",
+     "signal_label": "🟢 매수",
+     "score": 82,
+     "entry": 40950,
+     "target": 46700,
+     "stop": 38050,
+     "target_pct": 14.04,
+     "stop_pct": -7.08,
+     "atr_pct": 11.73,
      "market_blocked": false,
      "advisory_only": false
     }
